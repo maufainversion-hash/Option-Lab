@@ -13,12 +13,221 @@ def render() -> None:
         'Hull Cap 1 y 2 · UADE IFD I. Mecánica del contrato, mark-to-market, margins.'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab0, tab1, tab2, tab3, tab4 = st.tabs([
+        "Qué son y para qué sirven",
         "Forward vs Futuro",
         "Mark-to-Market",
         "Convergencia spot-futuro",
         "Especulación y Apalancamiento",
     ])
+
+    with tab0:
+        st.header("Fundamentos — derivados, futuros y los actores del mercado")
+
+        st.markdown(r"""
+### 1 · ¿Qué es un derivado?
+
+Un **derivado** es un instrumento financiero cuyo **valor deriva** del precio de
+otro activo, llamado **subyacente**. No es el activo en sí: es un contrato cuyo
+P&L depende de lo que le pase a ese activo.
+
+El subyacente puede ser cualquier cosa cuyo precio se pueda medir: acciones,
+índices bursátiles, commodities (oil, oro, soja), divisas, tasas de interés,
+bonos, electricidad, eventos climáticos, créditos, hasta volatilidad misma.
+
+**Las 4 grandes familias de derivados** (Hull Cap 1):
+
+| Familia | Qué es | Ejemplo típico |
+|---|---|---|
+| **Forwards** | Acuerdo bilateral para comprar/vender en T a precio K | Importador fija USD/ARS a 90 días |
+| **Futuros** | Forward estandarizado y listado en exchange | Dólar futuro en MATBA Rofex |
+| **Opciones** | Derecho (no obligación) de comprar/vender a K | Call sobre GGAL en BYMA |
+| **Swaps** | Intercambio periódico de flujos entre 2 partes | IR swap fijo vs LIBOR |
+
+---
+
+### 2 · ¿Qué es un futuro específicamente?
+
+Un **contrato futuro** es un acuerdo **estandarizado** para comprar (long) o
+vender (short) una cantidad fija de un activo subyacente, a un **precio acordado
+hoy**, con entrega en una **fecha futura específica**.
+
+**Las 5 propiedades que definen un futuro:**
+
+1. **Estandarización total**: el exchange define todo — tamaño del contrato
+   (ej. 100 oz de oro), vencimiento (ej. 3er viernes del mes), calidad del
+   subyacente, lugar de entrega. Vos solo elegís precio y cantidad de contratos.
+2. **Negociación en exchange**: cotiza en mercado centralizado (CME, ICE,
+   MATBA Rofex). Liquidez transparente, precios públicos.
+3. **Clearing house como contraparte**: la cámara compensadora se interpone
+   entre comprador y vendedor. Vos no le debés al otro lado del trade, le debés
+   a la cámara. Esto elimina counterparty risk individual.
+4. **Mark-to-market diario**: tu posición se revalúa cada día, las ganancias/
+   pérdidas se acreditan/debitan en tu cuenta de margen. Si tu balance cae
+   bajo el *maintenance level*, recibís un **margin call**.
+5. **Liquidación**: la mayoría se cierra antes del vencimiento por **offset**
+   (tomás la posición opuesta). Las que llegan a vencimiento se liquidan por
+   **physical delivery** (commodities) o **cash settlement** (índices, tasas).
+
+> **Forward vs Futuro en una frase**: el forward es un acuerdo bilateral hecho
+> a medida; el futuro es un forward estandarizado que cotiza en bolsa, con
+> margen diario y clearing house en el medio.
+
+---
+
+### 3 · ¿Para qué sirven los derivados?
+
+Cuatro funciones económicas centrales (Hull Cap 1):
+
+**(a) Gestión de riesgo (hedging)**
+
+Transferir riesgo de quien no lo quiere a quien sí. Un exportador agro tiene
+exposición natural al precio de la soja: si baja, pierde. Si vende futuros
+de soja, transfiere ese riesgo al mercado a cambio de **certeza**. Cuando la
+soja baje, la pérdida del físico se compensa con la ganancia del futuro short.
+
+**(b) Especulación**
+
+Tomar posiciones direccionales con **eficiencia de capital**. Un hedge fund
+que cree que el oro va a subir compra futuros: con un margen del ~10% del
+notional, controla la exposición completa. Si acierta, el ROI sobre el margen
+es enorme; si se equivoca, también.
+
+**(c) Arbitraje**
+
+Explotar ineficiencias de precio entre mercados. Si el futuro de oro está
+demasiado caro respecto al spot (F₀ > S₀·e^{rT} más costos), un arbitrajista
+compra spot, vende futuro, y se queda con la diferencia *risk-free*. La acción
+de los arbitrajistas presiona los precios hasta que la oportunidad desaparece.
+
+**(d) Descubrimiento de precios**
+
+Los precios de futuros agregan las expectativas de miles de participantes.
+El futuro de dólar a 90 días en MATBA Rofex no es solo un precio: es la
+mejor estimación pública de qué va a pasar con el FX. Bancos centrales,
+empresas y traders los miran para tomar decisiones.
+
+---
+
+### 4 · Los 3 tipos de inversores
+
+Hull divide a los participantes en tres categorías por motivación:
+""")
+
+        invest_df = pd.DataFrame({
+            "Tipo": ["**Hedger**", "**Especulador**", "**Arbitrajista**"],
+            "Motivación": [
+                "Reducir un riesgo que YA tiene",
+                "Tomar riesgo NUEVO apostando a una dirección",
+                "Capturar mispricing risk-free",
+            ],
+            "Ejemplo argentino típico": [
+                "Exportador agro short futuro de soja para fijar el precio de venta",
+                "Trader compra dólar futuro porque cree que el peso se va a devaluar",
+                "Arbitra CCL vs MEP cuando se abre el spread",
+            ],
+            "Trade-off": [
+                "Renuncia al upside a cambio de certeza",
+                "Alto leverage = alto retorno o alta pérdida",
+                "Requiere capital, velocidad y bajos costos",
+            ],
+        })
+        st.dataframe(invest_df, hide_index=True, use_container_width=True)
+
+        st.markdown(r"""
+**Ejemplos concretos por tipo:**
+
+**Hedger** — *Aerolínea cubriendo combustible*
+- Tiene gastos de jet fuel garantizados.
+- Compra futuros de crudo (cross-hedge porque no hay futuro líquido de jet fuel).
+- Si el petróleo sube → su combustible sube, pero la ganancia del futuro lo compensa.
+- Si el petróleo baja → su combustible baja, pero pierde en el futuro. Resultado: **costo fijado**.
+
+**Especulador** — *Hedge fund con tesis macro sobre el peso*
+- Cree que en 6 meses ARS va a estar más débil vs USD.
+- Compra dólar futuro Rofex con margen ~10%.
+- Si acierta: la ganancia del futuro sobre el margen es 5x-10x el movimiento %.
+- Si erra: pierde 5x-10x. Margin calls posibles si la posición se mueve en contra.
+
+**Arbitrajista** — *Trading desk de banco haciendo cash & carry*
+- Detecta que el futuro de oro a 6 meses cotiza por encima del fair value (S₀·e^{rT}).
+- Compra oro spot, vende futuro, financia la posición.
+- Al vencimiento entrega el oro, cobra el strike, devuelve el préstamo.
+- Profit risk-free = F₀ − S₀·e^{rT} (asumiendo costos pequeños).
+
+---
+
+### 5 · Mercados principales
+
+**Global:**
+- **CME Group** (Chicago Mercantile Exchange): el más grande del mundo. Agrupa
+  CME (índices, FX, tasas), CBOT (granos, treasuries), NYMEX (energía), COMEX (metales).
+- **ICE** (Intercontinental Exchange): energía (Brent), commodities, equity índices.
+- **Eurex**: derivados europeos, bonos, equity.
+- **HKEX, JPX**: Asia.
+
+**Argentina:**
+- **MATBA Rofex** (Mercado a Término de Buenos Aires + Rofex fusión 2018):
+  futuros de **dólar Rofex**, commodities agro (soja, maíz, trigo), tasas Badlar.
+- **MAE** (Mercado Abierto Electrónico): bonos, FX, repo.
+- **BYMA** (Bolsas y Mercados Argentinos): equity, opciones sobre acciones líderes.
+
+**Regulación**: en USA la **CFTC** (futuros) + **SEC** (securities). En Argentina
+la **CNV** (Comisión Nacional de Valores) supervisa todos los mercados y el
+**BCRA** regula el mercado FX.
+
+---
+
+### 6 · Tamaño y riesgos del mercado
+
+El mercado **global de derivados** tiene un **notional outstanding** de ~$700
+trillones (BIS 2024), aproximadamente **7 veces el PIB mundial**. Pero ojo: el
+notional sobreestima la exposición real. El **gross market value** (lo que
+realmente vale el portfolio si se cerrara hoy) es mucho menor, ~$20T.
+
+**Riesgos asociados:**
+
+| Riesgo | Qué es | Mitigación |
+|---|---|---|
+| **Market risk** | Pérdida por movimiento del subyacente | Diversificación, stop-loss |
+| **Counterparty risk** | Que la otra parte no pague | Clearing house, colateral diario |
+| **Liquidity risk** | No poder cerrar a precio razonable | Operar mercados profundos |
+| **Model risk** | Tu modelo de valuación está mal | Validación independiente, stress tests |
+| **Operational risk** | Errores humanos / sistemas | Controles, reconciliaciones |
+| **Systemic risk** | Crisis afecta a todos a la vez | Regulación, requisitos de capital |
+""")
+
+        with st.expander("📖 Historia breve de los derivados"):
+            st.markdown(r"""
+**Siglo XVII Japón** — mercados de arroz en Dojima son los primeros futuros
+modernos. Los samurai recibían su salario en arroz y vendían contratos a término
+para fijar el valor monetario.
+
+**1848 — CBOT (Chicago Board of Trade)** — el primer exchange de futuros
+moderno. Inicialmente centrado en granos del Midwest. Estandariza contratos
+y crea la cámara compensadora.
+
+**1972 — Futuros de divisas** — colapso de Bretton Woods (oro/dólar fijo)
+genera la necesidad de hedgear FX. CME crea el International Monetary Market.
+
+**1973 — Opciones listadas + Black-Scholes** — CBOE (Chicago Board Options
+Exchange) abre como primer mercado de opciones listadas. Mismo año, Fischer
+Black, Myron Scholes y Robert Merton publican el modelo BSM.
+
+**1980s-90s — Explosión de derivados OTC** — swaps de tasas, currency swaps,
+exotic options. Mercado en crecimiento exponencial.
+
+**2008 — Crisis subprime** — los CDOs y credit derivatives detonan la crisis
+financiera global. Bear Stearns, Lehman, AIG. La opacidad del mercado OTC
+queda al descubierto.
+
+**Post-2010 — Reformas** — Dodd-Frank (USA), EMIR (Europa). Centralización
+del clearing OTC, reporting obligatorio, márgenes para non-cleared trades.
+
+**Hoy** — el mercado de derivados es ~$700T notional. La mayor parte sigue
+siendo OTC (swaps de tasas IBOR/OIS) pero el ecosistema regulatorio post-2010
+hizo el sistema sustancialmente más robusto que en 2008.
+""")
 
     with tab1:
         st.markdown("""
