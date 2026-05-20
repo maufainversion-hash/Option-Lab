@@ -8,6 +8,7 @@ from plotly.subplots import make_subplots
 import streamlit as st
 
 from pricing.forwards import forward_price, cost_of_carry
+from pricing.forward_valuation import value_forward_position
 
 
 def render() -> None:
@@ -17,7 +18,12 @@ def render() -> None:
         'Hull Cap 5 y 6. Cost of carry, dividends, storage, contango/backwardation.'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["Pricing genérico", "Contango vs Backwardation", "Convenience yield"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Pricing genérico",
+        "Contango vs Backwardation",
+        "Convenience yield",
+        "Valor de la Posición",
+    ])
 
     with tab1:
         st.markdown(r"""
@@ -179,3 +185,114 @@ def render() -> None:
                       help="Si es muy alta → mercado prioriza tener el físico ya (escasez)")
         else:
             st.error("S, F, T deben ser > 0")
+
+    with tab4:
+        st.header("Valor de una Posición Forward Existente")
+        st.markdown(r"""
+**Concepto**
+
+Una vez que entrás en un contrato forward a un precio de entrega K, su valor cambia
+a medida que el precio forward actual F₀ se mueve.
+
+**Fórmula** (Hull 5.4):
+
+$$f = (F_0 - K) \cdot e^{-rT}$$
+
+Donde:
+- **f**: valor de la posición long (positivo si ganaste, negativo si perdiste)
+- **F₀**: precio forward actual para vencimiento T (calculado desde el spot)
+- **K**: precio de entrega pactado en tu contrato
+- **r**: tasa risk-free continua
+- **T**: tiempo al vencimiento (años)
+
+**Intuición:** la diferencia F₀ − K es lo que ganarías/perderías en el futuro.
+Lo traés a presente con e^(−rT).
+""")
+        st.markdown("---")
+        st.subheader("📊 Calculadora")
+
+        cA, cB = st.columns(2)
+        with cA:
+            spot_pos = st.number_input(
+                "Precio Spot Actual (S₀)", value=25.0, step=0.5,
+                help="Precio actual del activo subyacente",
+                key="fp_spot",
+            )
+            delivery_pos = st.number_input(
+                "Precio de Entrega Pactado (K)", value=24.0, step=0.5,
+                help="Precio K acordado en tu contrato forward",
+                key="fp_K",
+            )
+            rf_pos = st.number_input(
+                "Tasa Risk-Free (%)", value=5.0, step=0.5,
+                help="Tasa continua anual", key="fp_r",
+            ) / 100
+        with cB:
+            ttm_pos = st.number_input(
+                "Tiempo al Vencimiento (años)", value=0.5, step=0.1,
+                min_value=0.01, key="fp_T",
+            )
+            carry_pos = st.number_input(
+                "Cost of Carry (% anual)", value=0.0, step=0.5,
+                help="Storage − income. Para acciones con dividendos: poner −yield",
+                key="fp_carry",
+            ) / 100
+
+        result = value_forward_position(spot_pos, delivery_pos, rf_pos, ttm_pos, carry_pos)
+
+        st.markdown("---")
+        st.subheader("📈 Resultados")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Forward Actual (F₀)", f"${result['forward_price']:.4f}",
+                  help="Precio forward para este vencimiento hoy")
+        valor = result["position_value"]
+        m2.metric("Valor Posición Long", f"${valor:.4f}",
+                  delta="ganancia" if valor > 0 else ("pérdida" if valor < 0 else "—"),
+                  help="Si entraste long forward a K, este es tu P&L actual descontado")
+        m3.metric("Valor Posición Short", f"${result['position_value_short']:.4f}",
+                  help="Valor si entraste short forward a K")
+
+        st.markdown("---")
+        st.subheader("💡 Interpretación")
+        if valor > 0.005:
+            st.success(
+                f"**Posición long ganando ${abs(valor):.2f}**\n\n"
+                f"El precio forward actual (F₀ = ${result['forward_price']:.2f}) es "
+                f"mayor que tu precio de entrega (K = ${delivery_pos:.2f}). Si cerraras "
+                f"la posición hoy entrando short a F₀, ganarías "
+                f"(F₀ − K)·e^(−rT) = ${valor:.4f}."
+            )
+        elif valor < -0.005:
+            st.error(
+                f"**Posición long perdiendo ${abs(valor):.2f}**\n\n"
+                f"El precio forward actual (F₀ = ${result['forward_price']:.2f}) es "
+                f"menor que tu precio de entrega (K = ${delivery_pos:.2f}). La posición "
+                f"tiene valor negativo."
+            )
+        else:
+            st.info("La posición está at-the-money (F₀ ≈ K), valor cercano a cero.")
+
+        with st.expander("📖 Ejemplo paso a paso (Hull-style 5.3)"):
+            st.markdown(r"""
+**Enunciado:**
+
+- Entraste **long forward** en petróleo a K = $24/barril
+- Hoy el spot está en S₀ = $25
+- Tasa risk-free r = 5% continua
+- Vencimiento en T = 6 meses (0.5 años)
+
+**Solución paso a paso:**
+
+1. **Calculá el forward actual:**
+   $$F_0 = S_0 \cdot e^{rT} = 25 \cdot e^{0.05 \times 0.5} = 25 \cdot 1.02532 = \$25.633$$
+
+2. **Valor de tu posición long:**
+   $$f = (F_0 - K) \cdot e^{-rT} = (25.633 - 24) \cdot e^{-0.025}$$
+   $$f = 1.633 \times 0.9753 = \$1.5926$$
+
+**Interpretación:** tu contrato long a $24 tiene un valor actual de **$1.5926
+por barril**. Ganaste porque F₀ ($25.633) > K ($24).
+
+> Probá los inputs default (S₀=25, K=24, r=5%, T=0.5) en la calculadora de
+> arriba y deberías ver exactamente este resultado.
+""")
