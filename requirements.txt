@@ -1,0 +1,9 @@
+streamlit==1.36.0
+plotly==5.22.0
+pandas==2.2.2
+numpy==1.26.4
+scipy==1.13.1
+pytest==8.2.2
+yfinance==0.2.55
+curl_cffi==0.7.4
+pytz==2024.1
