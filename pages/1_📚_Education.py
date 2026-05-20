@@ -48,11 +48,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-tab_intro, tab_props, tab_strats, tab_greeks = st.tabs([
-    "1. Conceptos básicos (Cap 1 + 9)",
-    "2. Propiedades y parity (Cap 10)",
-    "3. Estrategias (Cap 11)",
-    "4. Griegas (Cap 18)",
+tab_intro, tab_factors, tab_props, tab_strats, tab_greeks = st.tabs([
+    "1. Conceptos básicos (Cap 1 + 10)",
+    "2. Los 6 factores (Cap 11)",
+    "3. Propiedades y parity (Cap 11)",
+    "4. Estrategias (Cap 12)",
+    "5. Griegas (Cap 19)",
 ])
 
 
@@ -126,7 +127,105 @@ eso necesitan modelos más sofisticados (Cap 12 binomial, Cap 14 Black-Scholes).
 
 
 # ============================================================
-# TAB 2 — Propiedades y parity
+# TAB 2 — Los 6 factores que afectan precios de opciones (Hull Cap 11)
+# ============================================================
+with tab_factors:
+    st.header("Los 6 factores")
+    st.markdown(r"""
+Seis variables determinan el precio de una opción europea sobre una acción.
+Para americanas se suma una séptima cuestión (early exercise), pero las direcciones son
+las mismas. Esto es **la tabla** que entra en el parcial:
+""")
+
+    import pandas as _pd
+    factors_table = _pd.DataFrame({
+        "Factor": ["Spot (S₀)", "Strike (K)", "Tiempo (T)", "Volatilidad (σ)",
+                   "Tasa libre (r)", "Dividendos (D)"],
+        "Eur. Call": ["+", "−", "?", "+", "+", "−"],
+        "Eur. Put":  ["−", "+", "?", "+", "−", "+"],
+        "Am. Call":  ["+", "−", "+", "+", "+", "−"],
+        "Am. Put":   ["−", "+", "+", "+", "−", "+"],
+    })
+    st.dataframe(factors_table, hide_index=True, use_container_width=True)
+
+    st.markdown(r"""
+**Por qué ?:** para opciones **europeas**, más tiempo NO siempre es mejor — porque si
+hay dividendos grandes a pagar antes del expiry, podés perderte más drawdowns del spot
+(call) o más uplifts (put). Para americanas, más tiempo nunca puede ser peor porque
+siempre podés ejercer hoy mismo si querés, así que T+1 dominates T.
+
+### Demo interactiva — variá un factor y mirá qué pasa
+""")
+    from pricing.black_scholes import bs_price
+    import numpy as _np
+
+    c1, c2 = st.columns(2)
+    factor = c1.selectbox("Factor a variar", ["Spot (S₀)", "Strike (K)", "Tiempo (T)",
+                                               "Volatilidad (σ)", "Tasa libre (r)",
+                                               "Dividendos (q)"])
+    opt_type_factors = c2.radio("Tipo", ["call", "put"], horizontal=True, key="f_type")
+
+    S_b, K_b, T_b, r_b, sig_b, q_b = 100.0, 100.0, 0.5, 0.05, 0.25, 0.0
+
+    if factor == "Spot (S₀)":
+        xs = _np.linspace(50, 150, 100)
+        ys = [bs_price(x, K_b, T_b, r_b, sig_b, q_b, opt_type_factors) for x in xs]
+        xlab = "S₀"
+    elif factor == "Strike (K)":
+        xs = _np.linspace(50, 150, 100)
+        ys = [bs_price(S_b, x, T_b, r_b, sig_b, q_b, opt_type_factors) for x in xs]
+        xlab = "K"
+    elif factor == "Tiempo (T)":
+        xs = _np.linspace(0.01, 2.0, 100)
+        ys = [bs_price(S_b, K_b, x, r_b, sig_b, q_b, opt_type_factors) for x in xs]
+        xlab = "T (años)"
+    elif factor == "Volatilidad (σ)":
+        xs = _np.linspace(0.05, 1.0, 100)
+        ys = [bs_price(S_b, K_b, T_b, r_b, x, q_b, opt_type_factors) for x in xs]
+        xlab = "σ"
+    elif factor == "Tasa libre (r)":
+        xs = _np.linspace(0.0, 0.20, 100)
+        ys = [bs_price(S_b, K_b, T_b, x, sig_b, q_b, opt_type_factors) for x in xs]
+        xlab = "r"
+    else:  # Dividendos
+        xs = _np.linspace(0.0, 0.15, 100)
+        ys = [bs_price(S_b, K_b, T_b, r_b, sig_b, x, opt_type_factors) for x in xs]
+        xlab = "q (dividend yield)"
+
+    import plotly.graph_objects as _go
+    color = "#3fb950" if opt_type_factors == "call" else "#f85149"
+    fig = _go.Figure()
+    fig.add_trace(_go.Scatter(x=xs, y=ys, mode="lines",
+                              line=dict(color=color, width=2.5),
+                              name=f"{opt_type_factors} price"))
+    fig.update_layout(template="plotly_dark", height=400,
+                      title=f"Precio del {opt_type_factors} vs {factor}",
+                      xaxis_title=xlab, yaxis_title="Precio",
+                      margin=dict(l=10, r=10, t=40, b=10))
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.caption("Base case: S=100, K=100, T=0.5, σ=25%, r=5%, q=0%. "
+               "Sólo se varía el factor seleccionado.")
+
+    with st.expander("📖 Por qué cada factor mueve el precio"):
+        st.markdown(r"""
+- **S₀**: el subyacente sube → el call gana valor intrínseco (S−K), el put pierde. Directo.
+- **K**: a más strike, el call tiene menos chance de terminar ITM (S>K más difícil),
+  y el put más (K>S más fácil).
+- **T**: para AM, más tiempo = más optionality. Para EU es ambiguo porque dividends pueden
+  comerse ese tiempo de ventaja.
+- **σ**: vol más alta significa mayor varianza del payoff. Como las opciones tienen
+  payoff *truncado* (max(S-K,0) o max(K-S,0)), más dispersión = más valor esperado.
+  Aplica a calls y puts por igual.
+- **r**: más tasa → más caro tener cash, más barato diferir el pago de K (call). Para
+  put, más tasa = más caro tener short cash, así que precio cae.
+- **D** (dividendos): los pagos de dividendos reducen el spot ex-date. Calls pierden
+  valor (S esperado más bajo), puts ganan.
+""")
+
+
+# ============================================================
+# TAB 3 — Propiedades y parity
 # ============================================================
 with tab_props:
     st.header("Propiedades de opciones y put-call parity")
