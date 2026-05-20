@@ -4,7 +4,11 @@ Reune: Conceptos básicos, los 6 factores, propiedades y put-call parity.
 """
 from __future__ import annotations
 
+import matplotlib
+matplotlib.use("Agg")  # backend no-GUI para que st.pyplot no abra ventanas
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -265,3 +269,186 @@ def render() -> None:
             col[2].metric("Status", "✅ OK" if result["in_range"] else "❌ Violado")
             if not result["in_range"]:
                 st.error(result["violation"])
+
+        with st.expander("📐 Put-Call Parity — derivación formal (portfolios A y C)"):
+            st.markdown(r"""
+**Demostración por arbitraje.** Probamos que para opciones europeas:
+""")
+            st.latex(r"c + K \, e^{-rT} = p + S_0")
+            st.markdown(r"""
+**Estrategia**: construir dos portfolios con **mismo payoff** en t=T. Si tienen
+mismo payoff → deben tener mismo precio hoy (ley de precio único).
+""")
+            pca, pcb = st.columns(2)
+            with pca:
+                st.markdown(r"""
+#### Portfolio A
+- Comprás **call europeo** strike K
+- Comprás **zero-coupon bond** que paga K en T
+
+**Costo hoy:** $c + K \, e^{-rT}$
+""")
+            with pcb:
+                st.markdown(r"""
+#### Portfolio C
+- Comprás **put europeo** strike K
+- Comprás **una acción** del subyacente
+
+**Costo hoy:** $p + S_0$
+""")
+            st.markdown("**Payoffs en t=T** — dos escenarios:")
+            payoff_df = pd.DataFrame({
+                "Componente": ["Call", "Bond", "**= Portfolio A**",
+                               "Put", "Share", "**= Portfolio C**"],
+                "Si S_T > K": ["S_T − K", "K", "**S_T**",
+                               "0", "S_T", "**S_T**"],
+                "Si S_T < K": ["0", "K", "**K**",
+                               "K − S_T", "S_T", "**K**"],
+            })
+            st.dataframe(payoff_df, hide_index=True, use_container_width=True)
+            st.success(
+                "Ambos portfolios valen lo mismo en TODOS los escenarios "
+                "(S_T si sube ITM, K si baja OTM). Por ley de precio único: "
+                "**c + Ke^(-rT) = p + S₀**."
+            )
+            st.info(
+                "**Uso práctico**: si conocés c, S₀, K, r, T → despejás p = c + Ke^(-rT) − S₀. "
+                "O creás un call sintético: c = p + S₀ − Ke^(-rT). Si la relación no se cumple "
+                "en el mercado, hay oportunidad de arbitraje."
+            )
+
+        with st.expander("📊 American options — desigualdad de paridad"):
+            st.markdown(r"""
+Para americanas no hay igualdad exacta (por early exercise), pero sí desigualdades:
+""")
+            st.latex(r"S_0 - K \;\leq\; C - P \;\leq\; S_0 - K\,e^{-rT}")
+            st.markdown(r"""
+- **Cota inferior**: $S_0 - K$ (intrinsic)
+- **Cota superior**: $S_0 - K e^{-rT}$ (paridad europea)
+
+### Ejemplo numérico
+
+Parámetros: c = $1.50 (call europea conocida), K = $20, T = 5/12 años, S₀ = $19, r = 10%.
+Objetivo: acotar el precio del **put americano P**.
+""")
+            c_val = 1.5
+            K_val = 20.0
+            T_val = 5 / 12
+            S0_val = 19.0
+            r_val = 0.10
+            lower_cp = S0_val - K_val
+            upper_cp = S0_val - K_val * np.exp(-r_val * T_val)
+
+            st.latex(f"S_0 - K = 19 - 20 = -1")
+            st.latex(
+                f"S_0 - K\\,e^{{-rT}} = 19 - 20\\,e^{{-0.10 \\times 5/12}} "
+                f"= 19 - {K_val * np.exp(-r_val * T_val):.4f} = {upper_cp:.4f}"
+            )
+            st.markdown(f"Entonces **{lower_cp:.2f} ≤ C − P ≤ {upper_cp:.4f}**.")
+
+            st.markdown(r"""
+Como $C \geq c = 1.5$ (americana ≥ europea), reordenando para P:
+""")
+            P_lower_from_C = c_val - upper_cp
+            P_lower_intrinsic = max(K_val - S0_val, 0.0)
+            P_lower_final = max(P_lower_from_C, P_lower_intrinsic)
+            P_upper_final = c_val + abs(lower_cp)
+
+            st.latex(rf"P \geq c - (S_0 - K\,e^{{-rT}}) = {c_val:.2f} - {upper_cp:.4f} = {P_lower_from_C:.4f}")
+            st.latex(rf"P \leq c + (K - S_0) = {c_val:.2f} + {abs(lower_cp):.2f} = {P_upper_final:.4f}")
+            st.markdown(
+                f"También $P \\geq \\max(K - S_0, 0) = ${P_lower_intrinsic:.2f}$ (intrinsic). "
+                f"Tomando el máximo de cotas inferiores: **${P_lower_final:.4f}**."
+            )
+            st.success(
+                f"Resultado: **${P_lower_final:.4f} < P < ${P_upper_final:.4f}**. "
+                f"El put americano debe estar entre ~$1.68 y $2.50."
+            )
+
+        with st.expander("📈 Early exercise — call y put americano vs europeo"):
+            st.markdown(r"""
+- **Calls americanos** sobre activos sin dividendos: **nunca** ejercer temprano.
+- **Puts americanos**: pueden convenir ejercerlos si están muy ITM.
+
+Veámoslo gráficamente.
+""")
+
+            S_grid = np.linspace(0, 200, 200)
+            K_plot = 100.0
+            r_plot = 0.05
+            T_plot = 1.0
+
+            # Plot 1: call americano vs europeo
+            fig1, ax1 = plt.subplots(figsize=(10, 5.2), facecolor="#0e1117")
+            ax1.set_facecolor("#0e1117")
+            intrinsic_call = np.maximum(S_grid - K_plot, 0)
+            euro_call_lower = np.maximum(S_grid - K_plot * np.exp(-r_plot * T_plot), 0)
+            ax1.plot(S_grid, intrinsic_call, "w--", linewidth=2,
+                     label="Intrinsic (S − K)", alpha=0.7)
+            ax1.plot(S_grid, euro_call_lower, "#3fb950", linewidth=2.5,
+                     label="Call europeo (lower bound)")
+            ax1.plot(S_grid, euro_call_lower, "#f85149", linewidth=2.5, alpha=0.7,
+                     label="Call americano (sin div) = mismo")
+            ax1.fill_between(S_grid, intrinsic_call, euro_call_lower, alpha=0.2,
+                              color="#3fb950", label="Valor del 'seguro' (no ejercer)")
+            ax1.axvline(K_plot, color="gray", linestyle=":", alpha=0.5)
+            ax1.axhline(0, color="gray", linestyle="-", linewidth=0.5)
+            ax1.set_xlabel("Precio spot S₀", color="white")
+            ax1.set_ylabel("Valor del call", color="white")
+            ax1.set_title("Call americano vs europeo — sin dividendos",
+                           color="white", fontweight="bold")
+            ax1.legend(loc="upper left", facecolor="#1e1e1e", edgecolor="gray",
+                       labelcolor="white")
+            ax1.grid(alpha=0.2, color="gray")
+            ax1.tick_params(colors="white")
+            ax1.set_xlim(0, 200)
+            ax1.set_ylim(-5, 110)
+            st.pyplot(fig1)
+            plt.close(fig1)
+
+            st.info(
+                "El call europeo siempre vale **más** que el intrinsic (S − K). La región "
+                "verde es el 'valor del seguro' — lo que perdés si ejercés temprano. "
+                "Por eso nunca conviene ejercer un call americano sin dividendos. "
+                "**Con dividendos** sí puede convenir, justo antes del ex-date para capturarlo."
+            )
+
+            # Plot 2: put americano vs europeo
+            fig2, ax2 = plt.subplots(figsize=(10, 5.2), facecolor="#0e1117")
+            ax2.set_facecolor("#0e1117")
+            intrinsic_put = np.maximum(K_plot - S_grid, 0)
+            euro_put_lower = np.maximum(K_plot * np.exp(-r_plot * T_plot) - S_grid, 0)
+            american_put = np.maximum(intrinsic_put, euro_put_lower)
+            ax2.plot(S_grid, intrinsic_put, "w--", linewidth=2,
+                     label="Intrinsic (K − S)", alpha=0.7)
+            ax2.plot(S_grid, euro_put_lower, "#3fb950", linewidth=2.5,
+                     label="Put europeo (lower bound)")
+            ax2.plot(S_grid, american_put, "#f85149", linewidth=2.5, alpha=0.7,
+                     label="Put americano")
+            ax2.axhline(K_plot * np.exp(-r_plot * T_plot), color="#d29922",
+                         linestyle=":", alpha=0.6,
+                         label=f"Ke^(-rT) = {K_plot * np.exp(-r_plot * T_plot):.1f}")
+            mask = american_put > euro_put_lower
+            ax2.fill_between(S_grid, euro_put_lower, american_put, where=mask,
+                              alpha=0.3, color="orange", label="Valor early exercise")
+            ax2.axvline(K_plot, color="gray", linestyle=":", alpha=0.5)
+            ax2.axhline(0, color="gray", linestyle="-", linewidth=0.5)
+            ax2.set_xlabel("Precio spot S₀", color="white")
+            ax2.set_ylabel("Valor del put", color="white")
+            ax2.set_title("Put americano vs europeo", color="white", fontweight="bold")
+            ax2.legend(loc="upper right", facecolor="#1e1e1e", edgecolor="gray",
+                       labelcolor="white")
+            ax2.grid(alpha=0.2, color="gray")
+            ax2.tick_params(colors="white")
+            ax2.set_xlim(0, 200)
+            ax2.set_ylim(-5, K_plot + 10)
+            st.pyplot(fig2)
+            plt.close(fig2)
+
+            st.warning(
+                "El put americano puede **tocar** la línea intrinsic (K − S) cuando S es "
+                "muy bajo. Si S → 0, ejercer ya te da K. Esperar te da solo Ke^(-rT) < K "
+                "(perdés la tasa). Por eso puede convenir **ejercer un put americano temprano** "
+                "si está muy ITM. La región naranja muestra dónde el put americano vale más "
+                "que el europeo."
+            )

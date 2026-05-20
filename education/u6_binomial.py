@@ -86,6 +86,95 @@ def render() -> None:
                               yaxis=dict(visible=False), margin=dict(l=10, r=10, t=40, b=10))
             st.plotly_chart(fig, use_container_width=True)
 
+        st.markdown("---")
+        with st.expander("🎓 Ejemplo del docente: S=41, K=40 (dual approach)"):
+            st.markdown(r"""
+Resolvemos el **mismo problema con dos métodos lado a lado** para mostrar la
+equivalencia conceptual entre arbitraje (replicating portfolio) y valuación
+risk-neutral.
+
+**Parámetros:**
+- S₀ = $41, K = $40 (call europeo)
+- T = 1 año, r = 8% (continua)
+- Su = $60, Sd = $30
+""")
+            S0_doc, K_doc = 41.0, 40.0
+            r_doc, T_doc = 0.08, 1.0
+            Su_doc, Sd_doc = 60.0, 30.0
+            Cu_doc = max(Su_doc - K_doc, 0)  # 20
+            Cd_doc = max(Sd_doc - K_doc, 0)  # 0
+
+            col_a, col_b = st.columns(2)
+
+            with col_a:
+                st.markdown("### Método 1 · Replicating portfolio")
+                st.markdown(r"""
+**Idea:** replicar el payoff del call con Δ acciones + $B en risk-free bond.
+""")
+                st.markdown(f"""
+**Payoffs:**
+- Si sube: Cu = max({Su_doc:.0f} − {K_doc:.0f}, 0) = **${Cu_doc:.0f}**
+- Si baja: Cd = max({Sd_doc:.0f} − {K_doc:.0f}, 0) = **${Cd_doc:.0f}**
+""")
+                st.markdown("**Sistema de ecuaciones:**")
+                st.latex(r"""
+\begin{cases}
+\Delta \cdot 60 + B \cdot e^{0.08} = 20 \\
+\Delta \cdot 30 + B \cdot e^{0.08} = 0
+\end{cases}
+""")
+                Delta_doc = (Cu_doc - Cd_doc) / (Su_doc - Sd_doc)
+                B_doc = -(Sd_doc * Delta_doc) / np.exp(r_doc * T_doc)
+                st.latex(rf"\Delta = \frac{{C_u - C_d}}{{S_u - S_d}} = \frac{{20 - 0}}{{60 - 30}} = \frac{{2}}{{3}}")
+                st.latex(rf"B = -\frac{{S_d \cdot \Delta}}{{e^{{rT}}}} = -\frac{{30 \times (2/3)}}{{e^{{0.08}}}} = {B_doc:.4f}")
+                C0_replicating = Delta_doc * S0_doc + B_doc
+                st.success(
+                    f"**Precio del call:** C₀ = Δ·S₀ + B = (2/3)×41 + ({B_doc:.4f}) = "
+                    f"**${C0_replicating:.4f}**"
+                )
+
+            with col_b:
+                st.markdown("### Método 2 · Risk-neutral valuation")
+                st.markdown(r"""
+**Idea:** calcular valor esperado del payoff bajo probabilidad **neutral al riesgo**.
+""")
+                u_doc = Su_doc / S0_doc
+                d_doc = Sd_doc / S0_doc
+                st.markdown(f"""
+**Factores:**
+- u = Su / S₀ = 60/41 = **{u_doc:.4f}**
+- d = Sd / S₀ = 30/41 = **{d_doc:.4f}**
+""")
+                st.markdown("**Probabilidad risk-neutral:**")
+                st.latex(r"p = \frac{e^{rT} - d}{u - d}")
+                p_doc = (np.exp(r_doc * T_doc) - d_doc) / (u_doc - d_doc)
+                st.latex(
+                    rf"p = \frac{{e^{{0.08}} - {d_doc:.4f}}}{{{u_doc:.4f} - {d_doc:.4f}}} "
+                    rf"= {p_doc:.4f}"
+                )
+                st.markdown("**Valor esperado descontado:**")
+                st.latex(r"C_0 = e^{-rT}\,[p \cdot C_u + (1-p) \cdot C_d]")
+                C0_riskneutral = np.exp(-r_doc * T_doc) * (p_doc * Cu_doc + (1 - p_doc) * Cd_doc)
+                st.latex(
+                    rf"C_0 = e^{{-0.08}}\,[{p_doc:.4f} \times 20 + {1-p_doc:.4f} \times 0] "
+                    rf"= {C0_riskneutral:.4f}"
+                )
+                st.success(f"**Precio del call:** C₀ = **${C0_riskneutral:.4f}**")
+
+            st.markdown("---")
+            mm1, mm2, mm3 = st.columns(3)
+            mm1.metric("Método 1 (Replicating)", f"${C0_replicating:.4f}")
+            mm2.metric("Método 2 (Risk-Neutral)", f"${C0_riskneutral:.4f}")
+            mm3.metric("Diferencia", f"${abs(C0_replicating - C0_riskneutral):.2e}",
+                        help="Debería ser cero hasta precisión flotante")
+
+            st.success(
+                "**Ambos métodos dan el mismo precio**, lo cual demuestra la equivalencia "
+                "conceptual entre arbitraje (replicating portfolio) y valuación risk-neutral. "
+                "**Para el examen**: el docente puede pedir cualquiera de los dos métodos, "
+                "o ambos. Dominá los dos."
+            )
+
     with tab2:
         st.markdown(r"""
     **Calibración** (Hull 13.10): para matching de volatilidad σ con un árbol CRR:
