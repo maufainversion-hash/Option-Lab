@@ -13,6 +13,162 @@ from strategies.aggregator import net_greeks
 from ui.charts.payoff_diagram import payoff_chart
 
 
+# ============================================================
+# Guía práctica por estrategia: cuándo / quién / ejemplo / riesgo
+# ============================================================
+STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
+    "Long Call": {
+        "cuando": "Esperás que el subyacente **suba fuerte** dentro del horizonte T. "
+                  "Querés exposición direccional bullish con riesgo limitado al premium pagado.",
+        "quien": "**Especulador bullish** con tesis concreta (earnings positivos, M&A, "
+                 "noticias sectoriales). También usado por traders que quieren leverage "
+                 "sin financiar la compra del activo entero.",
+        "ejemplo": "Comprás call de **YPF strike $5.000** vencimiento a 60 días, premium $200. "
+                   "Tenés tesis de que Vaca Muerta y nuevas concesiones empujan la acción a "
+                   "$6.500. Si llega, ganás $1.500 − $200 = **$1.300 por acción** (650% sobre el premium). "
+                   "Si no se mueve o baja, perdés los $200 y nada más.",
+        "riesgo": "Time decay (theta) **come el premium todos los días**. Si el subyacente se "
+                  "queda lateral hasta vencimiento, perdés el 100% del premium. La probabilidad de "
+                  "ejercicio ITM (N(d₂)) suele ser 30-50% para calls OTM cortos.",
+    },
+    "Long Put": {
+        "cuando": "Esperás que el subyacente **caiga fuerte**. Versión bearish del long call.",
+        "quien": "**Especulador bearish** (tesis de caída por crisis sectorial, earnings malos, "
+                 "factor macro adverso), o **hedger** que protege una posición long sin venderla.",
+        "ejemplo": "Antes de elecciones inciertas en Argentina, comprás puts de **Galicia (GGAL) "
+                   "strike $1.500** vencimiento 30 días, premium $80. Si gana el candidato "
+                   "market-unfriendly y la acción cae a $1.000, ganás $500 − $80 = **$420 por acción**. "
+                   "Versión hedge: tenés 10.000 acciones de Galicia y comprás puts para no tener que "
+                   "venderlas.",
+        "riesgo": "Igual que long call: theta come premium. Además, las acciones tienen drift positivo "
+                  "esperado (r − q), así que estructuralmente los puts son más caros que los calls "
+                  "(volatility skew lo amplifica todavía más).",
+    },
+    "Covered Call": {
+        "cuando": "Tenés stock long y esperás que se mueva **lateral o suba poco**. Estrategia de "
+                  "**income generation** sobre posiciones existentes.",
+        "quien": "**Holders de stock** que quieren generar yield extra sobre acciones que ya tienen. "
+                 "Muy popular en wealth management para clientes que buscan renta sobre su portfolio.",
+        "ejemplo": "Tenés 1.000 acciones de **Pampa Energía a $1.800**. Vendés 10 calls strike "
+                   "$2.000 (OTM 11%) vencimiento mensual, cobrás $50 de premium cada uno = $500 total. "
+                   "Si Pampa termina abajo de $2.000 → te quedás con los $500 (rentabilidad mensual ~2.8% "
+                   "extra sobre el portfolio). Si supera $2.000 → te asignan, recibís $2.000 + $50 = "
+                   "$2.050 por acción (todavía ganaste pero perdiste el upside por arriba).",
+        "riesgo": "**Cap al upside**: si la acción se va a la luna, tu ganancia queda limitada en "
+                  "K + premium. Es el opuesto al insurance — vos sos el que vende el seguro y cobrás "
+                  "premium a cambio de aceptar la asignación.",
+    },
+    "Protective Put": {
+        "cuando": "Tenés stock long y querés un **seguro contra una caída fuerte**, sin vender la "
+                  "posición.",
+        "quien": "**Inversor long** que teme un evento de cola (crisis, earnings malos, decisión "
+                 "regulatoria) pero no quiere salir del trade. También común en fondos que necesitan "
+                 "limitar drawdown por mandato.",
+        "ejemplo": "Tenés CEDEARs de **Tesla** comprados a USD 200, ahora valen USD 350. Querés proteger "
+                   "las ganancias antes del próximo earnings sin vender. Comprás puts strike $320 a 45 "
+                   "días, premium $8. Si Tesla baja a $250, el put compensa ($320 − $250 = $70). Si sube "
+                   "o queda lateral, perdés solo los $8 del premium (costo del seguro).",
+        "riesgo": "**Premium es costo permanente** (como pagar seguro de auto cada mes). En mercados "
+                  "calmos pagás premium repetidamente sin que nunca se use el seguro. Para una posición "
+                  "rolleada todo el año, el costo acumulado puede ser 5-10% del valor de la posición.",
+    },
+    "Bull Call Spread": {
+        "cuando": "Esperás que el subyacente **suba moderado** (no x10). Querés bajar el costo del "
+                  "long call aceptando un techo al profit.",
+        "quien": "**Especulador moderadamente bullish** que tiene un price target concreto. Trader que "
+                 "quiere mejorar el breakeven a costa de cap al upside.",
+        "ejemplo": "Tesla cotiza a $300 y pensás que en 60 días estará en $340. Comprás call $310 "
+                   "(premium $15) y vendés call $340 (premium $5). **Costo neto: $10**. Si termina "
+                   "en $340 o más, ganás $30 − $10 = **$20 por contrato** (200% sobre el costo). Si "
+                   "termina debajo de $310, perdés los $10.",
+        "riesgo": "Si el subyacente sube **mucho más** que el strike alto, tu ganancia se cappea — "
+                  "hubieras estado mejor con un long call simple. Trade-off clásico: menos costo a "
+                  "cambio de menos upside.",
+    },
+    "Bear Put Spread": {
+        "cuando": "Esperás que el subyacente **baje moderado**. Versión bearish del bull call spread.",
+        "quien": "**Especulador moderadamente bearish** con price target. Igual que bull call pero al "
+                 "revés.",
+        "ejemplo": "Pensás que Mercado Libre va a corregir desde $1.500 a $1.300 después de un "
+                   "earnings. Comprás put $1.450 (premium $30) y vendés put $1.300 (premium $10). "
+                   "Costo neto $20. Si termina en $1.300 o menos, ganás $150 − $20 = **$130 por "
+                   "contrato**. Si termina por arriba de $1.450, perdés los $20.",
+        "riesgo": "Igual que bull call spread invertido: cap al downside profit. Si la acción colapsa "
+                  "fuerte (ej. fraude contable, crash sectorial), hubieras ganado más con long put simple.",
+    },
+    "Long Straddle": {
+        "cuando": "Esperás un **movimiento GRANDE pero NO sabés en qué dirección**. Apuesta de "
+                  "volatilidad pura (long vega) para eventos binarios.",
+        "quien": "**Especuladores de volatilidad** y traders pre-evento (earnings reports, decisiones "
+                 "de FOMC, anuncios del BCRA, resultados electorales).",
+        "ejemplo": "Una semana antes del earnings de **NVIDIA**, IV explota. Pero vos no sabés si va a "
+                   "ser un beat masivo o un miss. Comprás call ATM y put ATM strike $500, premium "
+                   "combinado $40. Si NVIDIA termina en $560 ganás $60 − $40 = $20. Si termina en $440 "
+                   "ganás lo mismo. Si queda en $500, perdés los $40 (caso peor).",
+        "riesgo": "**Caro**: pagás DOS premiums. Necesitás un movimiento grande para superar el "
+                  "breakeven. **Vol crush** post-evento: si IV cae fuerte después del anuncio, perdés "
+                  "vega aunque el direccional haya estado bien.",
+    },
+    "Long Strangle": {
+        "cuando": "Igual setup que straddle pero querés **gastar menos premium**. Necesitás "
+                  "movimiento aún mayor para ganar.",
+        "quien": "**Especulador de vol** que quiere bajar el costo del straddle aceptando un "
+                 "breakeven más lejano. Útil cuando esperás un movimiento muy grande pero no tanto "
+                 "como justifica el straddle ATM.",
+        "ejemplo": "Spot $500. Comprás call $530 (premium $8) y put $470 (premium $7), total $15 "
+                   "(vs $40 del straddle ATM). Si termina entre $470 y $530, perdés todo. Pero si "
+                   "termina en $560 o $440, ganás $30 − $15 = $15 (100% del premium).",
+        "riesgo": "**Zona de pérdida más amplia** que el straddle. Si el subyacente queda entre los "
+                  "dos strikes, perdés AMBOS premiums. Y necesitás un movimiento todavía mayor para "
+                  "compensar.",
+    },
+    "Butterfly (calls)": {
+        "cuando": "Tenés una tesis **muy precisa** sobre dónde va a terminar el spot al vencimiento. "
+                  "Apuesta direccional + apuesta de baja vol simultánea.",
+        "quien": "**Traders sofisticados** con vista pinpoint sobre el target. Common en mesas de "
+                 "exotic options o trading de IV. También se usa para 'pin risk' alrededor de "
+                 "strikes con alto open interest.",
+        "ejemplo": "Pensás que el dólar Rofex cierra **exactamente en $1.200** al vencimiento de "
+                   "fin de mes (porque hay mucho open interest ahí). Comprás 1 call $1.150, vendés "
+                   "2 calls $1.200, comprás 1 call $1.250. Premium neto chico (~$10). Si cierra en "
+                   "$1.200 → ganás $50 − $10 = **$40**. Fuera del rango, perdés los $10.",
+        "riesgo": "**Probabilidad de profit es baja** (necesitás precisión). El profit máximo solo "
+                  "ocurre en un punto exacto. Útil más como estrategia de risk-reward asimétrico que "
+                  "como apuesta principal del portfolio.",
+    },
+    "Iron Condor": {
+        "cuando": "Esperás que el subyacente se mantenga **LATERAL** en un rango definido. Apuesta de "
+                  "baja volatilidad realizada vs alta IV implícita.",
+        "quien": "**Theta sellers** que venden volatilidad sistemáticamente (income strategies de "
+                 "fondos como JEPI, SVXY). Common en meses post-evento cuando IV está cara pero el "
+                 "realised es bajo.",
+        "ejemplo": "SPY cotiza a $500, IV alta post-FOMC. Vendés put $490 (premium $5), comprás put "
+                   "$485 (premium $2), vendés call $510 (premium $4), comprás call $515 (premium $1). "
+                   "Premium neto cobrado: $5 + $4 − $2 − $1 = **$6**. Si SPY queda entre $490 y $510 "
+                   "al vencimiento, te quedás con los $6 (100% profit). Si se sale, máximo pierde "
+                   "$5 − $6 = $1 (la diferencia de strikes menos el premium cobrado).",
+        "riesgo": "**Risk-reward asimétrico** al revés: ganás poco frecuentemente y perdés "
+                  "ocasionalmente más grande. Si el subyacente hace un movimiento brusco fuera del "
+                  "rango (gap, crash, rally), la pérdida puede ser 5-10x el premium cobrado. Stop "
+                  "loss disciplinado es crítico.",
+    },
+    "Collar": {
+        "cuando": "Tenés stock long con **ganancia acumulada** y querés protegerla **sin pagar "
+                  "premium**. Combina protective put con covered call para financiarlo.",
+        "quien": "**Holders de stocks con ganancia significativa** (empleados con stock options "
+                 "ya ITM, inversores que necesitan asegurar gains antes de cerrar el año fiscal).",
+        "ejemplo": "Compraste **CEDEARs de Google a USD 100**, ahora valen USD 180. Querés protegerte "
+                   "ante un crash pero no querés gastar premium. Vendés call strike $200 (cobrás $5) "
+                   "y con esos $5 comprás put strike $160 (cuesta $5). **Costo neto: $0** (zero-cost "
+                   "collar). Tu posición ahora tiene piso en $160 y techo en $200, sin haber gastado "
+                   "nada en premium.",
+        "riesgo": "**Limitás tu upside**. Si Google vuela a $300, tu ganancia queda capeada en $200. "
+                  "Y si baja a $150, el put te protege pero hubieras estado mejor sin collar (porque "
+                  "todavía no querías vender pero ahora estás forzado por la estructura).",
+    },
+}
+
+
 def render() -> None:
     st.markdown(
         '<h1 style="margin:0;font-weight:600;">Unidad VIII · Estrategias multi-leg</h1>'
@@ -145,3 +301,47 @@ def render() -> None:
     g3.metric("ν Vega", f"{ng['vega']:+.2f}")
     g4.metric("Θ Theta/año", f"{ng['theta']:+.2f}")
     g5.metric("ρ Rho", f"{ng['rho']:+.2f}")
+
+    # ============================================================
+    # Guía práctica de la estrategia seleccionada
+    # ============================================================
+    if strat_name in STRATEGY_CONTEXT:
+        ctx = STRATEGY_CONTEXT[strat_name]
+        st.markdown("---")
+        st.subheader(f"📚 {strat_name} — guía práctica")
+
+        cc1, cc2 = st.columns(2)
+        with cc1:
+            st.markdown(
+                f'<div class="premium-card" style="border-left:3px solid var(--accent);">'
+                f'<div style="color:var(--accent);font-weight:600;font-size:14px;">'
+                f'🎯 Cuándo se usa</div>'
+                f'<div style="color:var(--text);font-size:13px;margin-top:8px;line-height:1.6;">'
+                f'{ctx["cuando"]}</div></div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f'<div class="premium-card" style="border-left:3px solid var(--info);">'
+                f'<div style="color:var(--info);font-weight:600;font-size:14px;">'
+                f'👤 Quién la usa</div>'
+                f'<div style="color:var(--text);font-size:13px;margin-top:8px;line-height:1.6;">'
+                f'{ctx["quien"]}</div></div>',
+                unsafe_allow_html=True,
+            )
+        with cc2:
+            st.markdown(
+                f'<div class="premium-card" style="border-left:3px solid var(--positive);">'
+                f'<div style="color:var(--positive);font-weight:600;font-size:14px;">'
+                f'🌎 Ejemplo real</div>'
+                f'<div style="color:var(--text);font-size:13px;margin-top:8px;line-height:1.6;">'
+                f'{ctx["ejemplo"]}</div></div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f'<div class="premium-card" style="border-left:3px solid var(--negative);">'
+                f'<div style="color:var(--negative);font-weight:600;font-size:14px;">'
+                f'⚠️ Riesgo principal</div>'
+                f'<div style="color:var(--text);font-size:13px;margin-top:8px;line-height:1.6;">'
+                f'{ctx["riesgo"]}</div></div>',
+                unsafe_allow_html=True,
+            )
