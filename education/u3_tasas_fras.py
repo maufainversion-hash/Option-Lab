@@ -92,6 +92,96 @@ def render() -> None:
         except ValueError:
             st.warning("Formato inválido. Usar comas y punto decimal.")
 
+        with st.expander("📈 Bootstrap — construir una zero curve desde precios de bonos"):
+            st.markdown(r"""
+La curva zero que mostramos arriba **no se observa directamente** — se **bootstrapea**
+a partir de precios de mercado. El procedimiento es iterativo:
+
+1. **Bono más corto (zero-coupon)** → da la primera tasa zero directamente.
+2. **Bonos siguientes (con cupón)** → descontás los cupones con las tasas zero ya
+   conocidas, y despejás la nueva tasa zero del último cashflow.
+
+### Ejemplo paso a paso — 3 bonos al par (face = 100)
+
+| Maturity | Cupón anual | Precio |
+|---|---|---|
+| 6 meses  | 0% (zero)   | 97.50 |
+| 1 año    | 8%          | 100.00 |
+| 1.5 años | 12%         | 100.00 |
+""")
+            # Paso 1: zero a 6m
+            st.markdown("**Paso 1 — Bono 6m (zero coupon)**")
+            st.latex(r"100 = 97.50 \cdot e^{R_1 \times 0.5}")
+            st.latex(r"R_1 = -\frac{1}{0.5} \ln\!\left(\frac{97.50}{100}\right)")
+            R1_bs = -np.log(97.50 / 100) / 0.5
+            st.latex(rf"R_1 = {R1_bs:.6f} = {R1_bs*100:.2f}\%")
+
+            # Paso 2: zero a 1 año (cupón semianual 4 + 4 + face)
+            st.markdown("**Paso 2 — Bono 1 año (cupón 8% pagado semestral = $4 + $104)**")
+            st.markdown(
+                "Paga $4 a los 6m y $104 a 1 año (cupón final + face). Usamos R₁ para "
+                "descontar el cupón de 6m y despejamos R₂:"
+            )
+            st.latex(r"100 = 4 \cdot e^{-R_1 \times 0.5} + 104 \cdot e^{-R_2 \times 1.0}")
+            pv_c1y = 4 * np.exp(-R1_bs * 0.5)
+            st.latex(rf"100 = {pv_c1y:.4f} + 104\,e^{{-R_2 \times 1.0}}")
+            remaining_1y = 100 - pv_c1y
+            st.latex(rf"{remaining_1y:.4f} = 104\,e^{{-R_2 \times 1.0}}")
+            R2_bs = -np.log(remaining_1y / 104)
+            st.latex(rf"R_2 = -\ln\!\left(\frac{{{remaining_1y:.4f}}}{{104}}\right) = {R2_bs*100:.2f}\%")
+
+            # Paso 3: zero a 1.5 años
+            st.markdown("**Paso 3 — Bono 1.5 años (cupón 12% anual, pagado semestral)**")
+            st.markdown(
+                "Paga $6 a los 6m, $6 al año, y $106 a 1.5 años. Despejamos R₃:"
+            )
+            st.latex(
+                r"100 = 6 e^{-R_1 \times 0.5} + 6 e^{-R_2 \times 1.0} + 106 e^{-R_3 \times 1.5}"
+            )
+            pv_c1 = 6 * np.exp(-R1_bs * 0.5)
+            pv_c2 = 6 * np.exp(-R2_bs * 1.0)
+            remaining = 100 - pv_c1 - pv_c2
+            st.latex(
+                rf"100 = {pv_c1:.4f} + {pv_c2:.4f} + 106\,e^{{-R_3 \times 1.5}}"
+            )
+            st.latex(rf"{remaining:.4f} = 106\,e^{{-R_3 \times 1.5}}")
+            R3_bs = -np.log(remaining / 106) / 1.5
+            st.latex(rf"R_3 = -\frac{{1}}{{1.5}} \ln\!\left(\frac{{{remaining:.4f}}}{{106}}\right) = {R3_bs*100:.2f}\%")
+
+            st.markdown("### Zero curve construida")
+            maturities_bs = [0.5, 1.0, 1.5]
+            rates_bs = [R1_bs * 100, R2_bs * 100, R3_bs * 100]
+            fig_bs = go.Figure()
+            fig_bs.add_trace(go.Scatter(
+                x=maturities_bs, y=rates_bs, mode="lines+markers",
+                line=dict(color="#d4af37", width=3),
+                marker=dict(size=12, color="#3fb950"),
+                name="Zero curve",
+            ))
+            for t, r in zip(maturities_bs, rates_bs):
+                fig_bs.add_annotation(x=t, y=r, text=f"{r:.2f}%",
+                                       yshift=15, showarrow=False,
+                                       font=dict(color="#d4af37", size=13))
+            fig_bs.update_layout(template="plotly_dark", height=380,
+                                  title="Zero curve bootstrap-eada de los 3 bonos",
+                                  xaxis_title="Maturity (años)",
+                                  yaxis_title="Zero rate continuous (%)",
+                                  margin=dict(l=10, r=10, t=40, b=10))
+            st.plotly_chart(fig_bs, use_container_width=True)
+
+            st.success(
+                f"**Resultado final**: R(0.5) = {R1_bs*100:.2f}%, "
+                f"R(1.0) = {R2_bs*100:.2f}%, R(1.5) = {R3_bs*100:.2f}%. "
+                f"Estos son los spot rates que el mercado implica para descontar "
+                f"cualquier cashflow en esos plazos."
+            )
+            st.info(
+                "**Engine disponible**: `pricing.interest_rates.bootstrap_zero_curve(...)` "
+                "implementa este proceso programáticamente y soporta bonos zero + bonos "
+                "con cupones semestrales. Usalo para curvas más largas (5y, 10y, 30y) sin "
+                "hacer la cuenta a mano."
+            )
+
     with tab3:
         st.markdown(r"""
     **Forward Rate Agreement (FRA)** — contrato que fija una tasa de interés para un período
@@ -147,6 +237,75 @@ def render() -> None:
                            tolerance=0.05, units=" $")
         else:
             st.error("T₂ debe ser > T₁")
+
+        with st.expander("💰 FRA settlement — al final vs al inicio (descontado)"):
+            st.markdown(r"""
+Un FRA produce **un solo flujo**, pero hay dos convenciones sobre cuándo se paga:
+
+**Método 1 — Settlement al final del período** (timing natural):
+
+$$\text{Pago en } T_2 = L \cdot (R_F - R_K) \cdot \tau$$
+
+Donde τ = T₂ − T₁ es la duración del período (usando day-count simple del FRA, típicamente ACT/360).
+
+**Método 2 — Settlement al inicio del período** (práctica de mercado, en T₁):
+
+$$\text{Pago en } T_1 = \frac{L \cdot (R_F - R_K) \cdot \tau}{1 + R_F \cdot \tau}$$
+
+Es el método 1 descontado a T₁ con la tasa **flotante observada** (no la zero curve),
+usando convención simple.
+
+### ¿Por qué importa?
+
+Operativamente es mucho más conveniente pagar al inicio:
+- Eliminás riesgo de contraparte durante el período de devengo
+- Ambas partes saben exactamente cuánto se debe el mismo día del reset
+- No hay que esperar 3-6 meses hasta el "natural" settlement
+
+Por eso **la mayoría de FRAs interbancarios** se liquidan así. Hull 4.8.
+""")
+            st.subheader("Calculadora comparativa")
+            cs1, cs2 = st.columns(2)
+            notional_st = cs1.number_input("Notional", value=1_000_000.0, step=100_000.0,
+                                            key="frast_L")
+            R_K_st = cs2.number_input("Tasa pactada R_K (anual, simple)", value=0.05,
+                                       step=0.001, format="%.4f", key="frast_RK")
+            cs3, cs4 = st.columns(2)
+            R_F_st = cs3.number_input("LIBOR observada R_F (anual, simple)", value=0.055,
+                                       step=0.001, format="%.4f", key="frast_RF")
+            days_st = cs4.number_input("Días del período (ACT/360)", value=180, step=10,
+                                        min_value=1, key="frast_days")
+
+            tau_st = days_st / 360
+            payoff_T2 = notional_st * (R_F_st - R_K_st) * tau_st
+            payoff_T1 = payoff_T2 / (1 + R_F_st * tau_st)
+
+            st.markdown("---")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Pago en T₂ (al final)", f"${payoff_T2:,.2f}")
+            m2.metric("Pago en T₁ (al inicio, descontado)", f"${payoff_T1:,.2f}")
+            m3.metric("Diferencia (descuento)",
+                       f"${payoff_T2 - payoff_T1:,.2f}",
+                       help="El método 'al inicio' paga MENOS porque se cobra antes")
+
+            st.markdown(r"""
+**Verificación matemática:**
+
+Pago_T₂ × (1 + R_F·τ) = Pago_T₁ × (1 + R_F·τ)² / (1 + R_F·τ) ... espera, mejor:
+
+Pago_T₂ descontado a T₁ con tasa simple R_F y plazo τ:
+
+$$\text{Pago}_{T_1} = \frac{\text{Pago}_{T_2}}{1 + R_F \cdot \tau}$$
+
+Si invirtieras el Pago_T₁ a la tasa R_F entre T₁ y T₂, recibirías exactamente
+Pago_T₁ × (1 + R_F·τ) = Pago_T₂. Sin arbitraje, ambos métodos son equivalentes
+en valor presente.
+""")
+            st.info(
+                "**Setup del ejemplo default**: FRA 3×9 (empieza en 3 meses, dura 6 meses) "
+                "sobre LIBOR 6m. Notional $1M, tasa pactada 5%, LIBOR observada 5.5%, "
+                "día-count ACT/360. Pago al final ≈ $2,500. Pago al inicio descontado ≈ $2,432."
+            )
 
     with tab4:
         st.markdown(r"""
