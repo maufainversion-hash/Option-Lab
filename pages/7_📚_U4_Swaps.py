@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from pricing.swaps import swap_value_via_bonds, swap_par_rate
-from ui.styling import inject_premium_css
+from ui.styling import inject_premium_css, output_card
 from ui.components.header_strip import render_header_strip
 
 st.set_page_config(page_title="U4 — Swaps", page_icon="🔁", layout="wide",
@@ -99,14 +99,20 @@ bono flotante (que vale notional + próximo cupón conocido, descontado).
         position="receive_fixed",
     )
 
-    m1, m2, m3 = st.columns(3)
-    m1.metric("B_fix", f"${result.bond_fixed_value:,.0f}")
-    m2.metric("B_flt", f"${result.bond_floating_value:,.0f}")
-    m3.metric("V_swap (receive fixed)", f"${result.swap_value:+,.0f}",
-              delta_color="off" if result.swap_value >= 0 else "inverse")
+    v_color = "positive" if result.swap_value >= 0 else "negative"
+    sc = st.columns(3)
+    sc[0].markdown(output_card("B_fix (PV bono fijo)", f"${result.bond_fixed_value:,.0f}",
+                                color="info"), unsafe_allow_html=True)
+    sc[1].markdown(output_card("B_flt (PV bono flotante)", f"${result.bond_floating_value:,.0f}",
+                                color="info"), unsafe_allow_html=True)
+    sc[2].markdown(output_card("V_swap (recibe fijo)", f"${result.swap_value:+,.0f}",
+                                color=v_color, hint="B_fix − B_flt"),
+                   unsafe_allow_html=True)
 
     par = swap_par_rate(payment_times, zeros, accrual2)
-    st.metric("Par swap rate (que haría V=0)", f"{par:.4%}")
+    st.markdown(output_card("Par swap rate (que haría V=0)", f"{par*100:.4f}%",
+                            color="accent", hint="La tasa fija que pone V_swap = 0 al iniciar"),
+                unsafe_allow_html=True)
 
     st.subheader("Zero curve usada")
     fig = go.Figure()
@@ -118,3 +124,17 @@ bono flotante (que vale notional + próximo cupón conocido, descontado).
                       xaxis_title="T (años)", yaxis_title="Zero rate (%)",
                       margin=dict(l=10, r=10, t=20, b=10))
     st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("Cashflows del swap (perspectiva receive-fixed)")
+    fixed_cfs = [L2 * R_fix2 * accrual2 for _ in payment_times]
+    floating_cfs = [L2 * z * accrual2 for z in zeros]
+    fig_cf = go.Figure()
+    fig_cf.add_trace(go.Bar(x=[f"T={t:.2f}" for t in payment_times], y=fixed_cfs,
+                             name="Pierna fija (cobra)", marker_color="#3fb950"))
+    fig_cf.add_trace(go.Bar(x=[f"T={t:.2f}" for t in payment_times],
+                             y=[-c for c in floating_cfs],
+                             name="Pierna flotante (paga)", marker_color="#f85149"))
+    fig_cf.update_layout(template="plotly_dark", barmode="relative", height=350,
+                         title="Cashflows nominales: recibe fijo, paga flotante (proyectado)",
+                         margin=dict(l=10, r=10, t=40, b=10))
+    st.plotly_chart(fig_cf, use_container_width=True)

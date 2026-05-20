@@ -15,7 +15,7 @@ from pricing.interest_rates import (
     to_continuous, from_continuous, forward_rate,
     fra_value, macaulay_duration, modified_duration,
 )
-from ui.styling import inject_premium_css
+from ui.styling import inject_premium_css, output_card, info_box, hull_check
 from ui.components.header_strip import render_header_strip
 
 st.set_page_config(page_title="U3 — Tasas y FRAs", page_icon="💱", layout="wide",
@@ -112,8 +112,9 @@ futuro. Hull 4.8.
 
 donde R_F es la **forward rate** implícita en la zero curve.
 """)
-    st.info("**Setup tipo Hull 4.3**: notional $100M, R_K = 4%, T₁=3, T₂=3.25, zero₃=3%, zero₃.₂₅=3.2% cc. "
-            "Aplicando f=(R₂T₂−R₁T₁)/(T₂−T₁) → forward ≈ 5.6% cc → payoff en T₂ ≈ -$405k → PV ≈ -$365k.")
+    info_box("<b>Setup tipo Hull 4.3</b>: notional $100M, R_K = 4%, T₁=3, T₂=3.25, "
+             "zero₃=3% cc, zero₃.₂₅=3.2% cc. Aplicando f=(R₂T₂−R₁T₁)/(T₂−T₁) → "
+             "forward ≈ 5.6% cc → payoff en T₂ ≈ -$405k → PV ≈ -$365k.", kind="hull")
 
     c1, c2, c3 = st.columns(3)
     notional = c1.number_input("Notional", min_value=1000.0, value=100_000_000.0, step=1000.0)
@@ -128,16 +129,31 @@ donde R_F es la **forward rate** implícita en la zero curve.
 
     if T2_fra > T1_fra:
         result = fra_value(notional, R_K, T1_fra, T2_fra, zero_T1, zero_T2, position)
+        pv_color = "positive" if result.present_value >= 0 else "negative"
+        fc = st.columns(4)
+        fc[0].markdown(output_card("Forward rate implícita", f"{result.forward_rate*100:.4f}%",
+                                    hint="Continuously compounded", color="info"),
+                       unsafe_allow_html=True)
+        fc[1].markdown(output_card("Payoff en T₂", f"${result.payoff_at_T2:+,.0f}",
+                                    color=pv_color), unsafe_allow_html=True)
+        fc[2].markdown(output_card("PV hoy", f"${result.present_value:+,.0f}",
+                                    color=pv_color), unsafe_allow_html=True)
+        fc[3].markdown(output_card("Posición", result.position.replace("_", " ").title(),
+                                    color="muted"), unsafe_allow_html=True)
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Forward rate implícita (cc)", f"{result.forward_rate:.4%}")
-        m2.metric("Payoff en T₂", f"${result.payoff_at_T2:,.0f}")
-        m3.metric("PV hoy", f"${result.present_value:,.0f}",
-                  delta_color="off" if result.present_value >= 0 else "inverse")
-        m4.metric("Posición", result.position)
-
-        st.caption("✅ Sanity check: con los inputs default deberías ver forward ≈ 5.6%, payoff ≈ -$405k, PV ≈ -$365k. "
-                   "El signo negativo confirma que recibir 4% cuando el mercado pricea 5.6% es desfavorable.")
+        # Hull verification (sólo cuando los inputs matchean el ejemplo del libro)
+        is_hull_setup = (
+            abs(notional - 100_000_000) < 1 and abs(R_K - 0.04) < 1e-6
+            and abs(T1_fra - 3.0) < 1e-6 and abs(T2_fra - 3.25) < 1e-6
+            and abs(zero_T1 - 0.030) < 1e-6 and abs(zero_T2 - 0.032) < 1e-6
+            and position == "receive_fixed"
+        )
+        if is_hull_setup:
+            st.subheader("Verificación")
+            hull_check(0.056, result.forward_rate, label="Forward rate (Hull 4.3 setup)",
+                       tolerance=0.001)
+            hull_check(-365000, result.present_value, label="PV (Hull 4.3 setup)",
+                       tolerance=0.05, units=" $")
     else:
         st.error("T₂ debe ser > T₁")
 

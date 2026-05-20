@@ -49,7 +49,8 @@ $$f = e^{-rT}[p \cdot f_u + (1-p) \cdot f_d], \quad p = \frac{e^{rT} - d}{u - d}
 p no es la "probabilidad real" de subir — es la **probabilidad risk-neutral** que hace
 que valuar descontando a la tasa libre dé el mismo precio que la no-arbitrage.
 """)
-    st.info("**Hull Ejemplo 13.1**: S=$20, u=1.1, d=0.9, K=$21, r=12%, T=3m. → C ≈ $0.633")
+    from ui.styling import info_box as _info_box, hull_check as _hull_check
+    _info_box("<b>Hull Ejemplo 13.1</b>: S=$20, u=1.1, d=0.9, K=$21, r=12%, T=3m. → C ≈ $0.633", kind="hull")
 
     c1, c2, c3 = st.columns(3)
     S = c1.number_input("Spot S", value=20.0, step=1.0, key="bn1_S")
@@ -73,11 +74,11 @@ que valuar descontando a la tasa libre dé el mismo precio que la no-arbitrage.
             st.warning(f"p = {p:.4f} fuera de (0,1) — viola no-arbitraje con estos inputs")
         f0 = exp(-r_b * T1) * (p * fu + (1 - p) * fd)
 
-        mm = st.columns(4)
+        mm = st.columns(3)
         mm[0].metric("p (risk-neutral)", f"{p:.4f}")
         mm[1].metric("Δ (delta replicante)", f"{delta:.4f}")
         mm[2].metric("Valor call hoy", f"${f0:.4f}")
-        mm[3].metric("Verificación Hull 13.1", "✓" if abs(f0 - 0.633) < 0.005 else "—")
+        _hull_check(0.633, f0, label="Call price (Hull 13.1)", tolerance=0.005, units=" $")
 
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=[0, 1], y=[S, Su], mode="lines+markers+text",
@@ -247,73 +248,184 @@ rinde r. Esto es el corazón del *no-arbitrage pricing*.
     st.plotly_chart(fig2, use_container_width=True)
 
 with tab4:
+    from ui.styling import output_card, info_box, hull_check
+
+    st.header("Black-Scholes-Merton — descomposición completa")
     st.markdown(r"""
-**Black-Scholes-Merton** (Hull 15.8):
+El modelo BSM (Hull Cap 15) supone que el subyacente sigue un GBM bajo la medida
+risk-neutral $\mathbb{Q}$, y deriva el precio de una opción europea como **valor esperado
+descontado** del payoff bajo esa medida.
 
-$$c = S_0 e^{-qT} N(d_1) - K e^{-rT} N(d_2)$$
-$$p = K e^{-rT} N(-d_2) - S_0 e^{-qT} N(-d_1)$$
-
-con
-
-$$d_1 = \frac{\ln(S_0/K) + (r - q + \tfrac{1}{2}\sigma^2)T}{\sigma \sqrt{T}}, \quad d_2 = d_1 - \sigma \sqrt{T}$$
-
-**Interpretación rioplatense**:
-- $N(d_2)$ = probabilidad risk-neutral de terminar **in-the-money**, $P^Q(S_T > K)$.
-- $N(d_1)$ = derivada del call respecto a S (es **delta** del call con q=0).
+**Las dos fórmulas:**
 """)
-    st.info("**Hull Ejemplo 14.6**: S=42, K=40, T=0.5, r=10%, σ=20%. → Call ≈ 4.7594, Put ≈ 0.8086")
+    st.latex(r"c = S_0 \, e^{-qT} \, N(d_1) \;-\; K \, e^{-rT} \, N(d_2)")
+    st.latex(r"p = K \, e^{-rT} \, N(-d_2) \;-\; S_0 \, e^{-qT} \, N(-d_1)")
+    st.markdown("con")
+    st.latex(r"d_1 = \frac{\ln(S_0/K) + (r - q + \tfrac{1}{2}\sigma^2)\,T}{\sigma\sqrt{T}}, \qquad d_2 = d_1 - \sigma\sqrt{T}")
 
+    st.subheader("Inputs (Hull Ejemplo 14.6)")
     c1, c2, c3 = st.columns(3)
-    S4 = c1.number_input("S₀", value=42.0, step=1.0, key="bs4_S")
-    K4 = c2.number_input("K", value=40.0, step=1.0, key="bs4_K")
-    T4 = c3.number_input("T", value=0.5, step=0.05, key="bs4_T")
+    S4 = c1.number_input("S₀", value=42.0, step=1.0, key="bsm_S")
+    K4 = c2.number_input("K", value=40.0, step=1.0, key="bsm_K")
+    T4 = c3.number_input("T", value=0.5, step=0.05, key="bsm_T")
     c4, c5, c6 = st.columns(3)
-    r4 = c4.number_input("r", value=0.10, step=0.005, format="%.4f", key="bs4_r")
-    sigma4 = c5.number_input("σ", value=0.20, step=0.01, format="%.4f", key="bs4_sig")
-    q4 = c6.number_input("q", value=0.0, step=0.005, format="%.4f", key="bs4_q")
+    r4 = c4.number_input("r (cc)", value=0.10, step=0.005, format="%.4f", key="bsm_r")
+    sig4 = c5.number_input("σ", value=0.20, step=0.01, format="%.4f", key="bsm_sig")
+    q4 = c6.number_input("q (div yield)", value=0.0, step=0.005, format="%.4f", key="bsm_q")
 
     try:
-        d1 = (log(S4 / K4) + (r4 - q4 + 0.5 * sigma4 ** 2) * T4) / (sigma4 * sqrt(T4))
-        d2 = d1 - sigma4 * sqrt(T4)
-        Nd1 = norm.cdf(d1)
-        Nd2 = norm.cdf(d2)
-        c_val = bs_price(S4, K4, T4, r4, sigma4, q4, "call")
-        p_val = bs_price(S4, K4, T4, r4, sigma4, q4, "put")
+        d1 = (log(S4 / K4) + (r4 - q4 + 0.5 * sig4 ** 2) * T4) / (sig4 * sqrt(T4))
+        d2 = d1 - sig4 * sqrt(T4)
+        Nd1, Nd2 = norm.cdf(d1), norm.cdf(d2)
+        Nmd1, Nmd2 = norm.cdf(-d1), norm.cdf(-d2)
+        S_disc = S4 * exp(-q4 * T4)
+        K_disc = K4 * exp(-r4 * T4)
+        c_price = S_disc * Nd1 - K_disc * Nd2
+        p_price = K_disc * Nmd2 - S_disc * Nmd1
 
-        m = st.columns(4)
-        m[0].metric("d₁", f"{d1:.4f}")
-        m[1].metric("d₂", f"{d2:.4f}")
-        m[2].metric("N(d₁) = delta call (q=0)", f"{Nd1:.4f}")
-        m[3].metric("N(d₂) = P^Q(S_T > K)", f"{Nd2:.4f}")
+        st.subheader("Descomposición del CALL en sus 4 piezas")
+        cc = st.columns(4)
+        cc[0].markdown(output_card("S₀·e^(-qT)", f"{S_disc:.4f}",
+                                    hint="Spot ajustado por divs", color="info"),
+                       unsafe_allow_html=True)
+        cc[1].markdown(output_card("N(d₁)", f"{Nd1:.4f}",
+                                    hint="Delta del call", color="positive"),
+                       unsafe_allow_html=True)
+        cc[2].markdown(output_card("K·e^(-rT)", f"{K_disc:.4f}",
+                                    hint="Strike descontado a hoy", color="info"),
+                       unsafe_allow_html=True)
+        cc[3].markdown(output_card("N(d₂)", f"{Nd2:.4f}",
+                                    hint="P risk-neutral de ejercer", color="positive"),
+                       unsafe_allow_html=True)
 
-        m2 = st.columns(2)
-        m2[0].metric("Call BSM", f"${c_val:.4f}",
-                     help="Verificá Hull 14.6: si S=42,K=40,T=0.5,r=10%,σ=20% → 4.7594")
-        m2[1].metric("Put BSM", f"${p_val:.4f}",
-                     help="Hull 14.6 → 0.8086")
+        st.markdown(
+            f'<div style="text-align:center; margin:20px 0; font-family:JetBrains Mono; '
+            f'font-size:16px; color:var(--text);">'
+            f'<span style="color:var(--info);">{S_disc:.4f}</span> × '
+            f'<span style="color:var(--positive);">{Nd1:.4f}</span> '
+            f'<span style="color:var(--text-muted);">−</span> '
+            f'<span style="color:var(--info);">{K_disc:.4f}</span> × '
+            f'<span style="color:var(--positive);">{Nd2:.4f}</span> = '
+            f'<span style="color:var(--accent); font-size:22px; font-weight:700;">{c_price:.4f}</span>'
+            f'</div>', unsafe_allow_html=True,
+        )
+
+        st.subheader("Descomposición del PUT")
+        pp = st.columns(4)
+        pp[0].markdown(output_card("K·e^(-rT)", f"{K_disc:.4f}",
+                                    hint="Strike descontado", color="info"),
+                       unsafe_allow_html=True)
+        pp[1].markdown(output_card("N(−d₂)", f"{Nmd2:.4f}",
+                                    hint="P risk-neutral de NO ejercer call", color="negative"),
+                       unsafe_allow_html=True)
+        pp[2].markdown(output_card("S₀·e^(-qT)", f"{S_disc:.4f}",
+                                    hint="Spot ajustado por divs", color="info"),
+                       unsafe_allow_html=True)
+        pp[3].markdown(output_card("N(−d₁)", f"{Nmd1:.4f}",
+                                    hint="1 − delta del call", color="negative"),
+                       unsafe_allow_html=True)
+
+        st.markdown(
+            f'<div style="text-align:center; margin:20px 0; font-family:JetBrains Mono; '
+            f'font-size:16px; color:var(--text);">'
+            f'<span style="color:var(--info);">{K_disc:.4f}</span> × '
+            f'<span style="color:var(--negative);">{Nmd2:.4f}</span> '
+            f'<span style="color:var(--text-muted);">−</span> '
+            f'<span style="color:var(--info);">{S_disc:.4f}</span> × '
+            f'<span style="color:var(--negative);">{Nmd1:.4f}</span> = '
+            f'<span style="color:var(--accent); font-size:22px; font-weight:700;">{p_price:.4f}</span>'
+            f'</div>', unsafe_allow_html=True,
+        )
+
+        st.subheader("Los componentes intermedios")
+        dd = st.columns(4)
+        dd[0].markdown(output_card("d₁", f"{d1:.4f}"), unsafe_allow_html=True)
+        dd[1].markdown(output_card("d₂", f"{d2:.4f}"), unsafe_allow_html=True)
+        dd[2].markdown(output_card("σ√T", f"{sig4*sqrt(T4):.4f}",
+                                    hint="d₁ − d₂", color="muted"),
+                       unsafe_allow_html=True)
+        dd[3].markdown(output_card("ln(S/K)", f"{log(S4/K4):.4f}",
+                                    hint="Moneyness logarítmica", color="muted"),
+                       unsafe_allow_html=True)
+
+        st.subheader("Verificación contra Hull Ejemplo 14.6")
+        info_box("Inputs default reproducen Hull Ejemplo 14.6. Valores esperados: "
+                 "d₁=0.7693, d₂=0.6278, Call=4.7594, Put=0.8086.", kind="hull")
+        hull_check(0.7693, d1, label="d₁")
+        hull_check(0.6278, d2, label="d₂")
+        hull_check(4.7594, c_price, label="Call price", units=" $")
+        hull_check(0.8086, p_price, label="Put price", units=" $")
+
+        st.subheader("Interpretación de cada pieza (Nielsen 1992)")
+        ic1, ic2 = st.columns(2)
+        with ic1:
+            st.markdown(
+                '<div class="premium-card" style="border-left:3px solid var(--positive);">'
+                '<div style="color:var(--positive);font-weight:600;font-size:14px;">N(d₁) — la "delta"</div>'
+                '<div style="color:var(--text-muted);font-size:13px;margin-top:8px;line-height:1.6;">'
+                'Es la <b>fracción del subyacente</b> que necesitás mantener para replicar el call '
+                '(hedge ratio). También es la probabilidad de ejercicio bajo la medida en la que el '
+                'numerario es el stock (no el cash). Va de 0 (deep OTM) a 1 (deep ITM).'
+                '</div></div>', unsafe_allow_html=True)
+        with ic2:
+            st.markdown(
+                '<div class="premium-card" style="border-left:3px solid var(--accent);">'
+                '<div style="color:var(--accent);font-weight:600;font-size:14px;">N(d₂) — la probabilidad</div>'
+                '<div style="color:var(--text-muted);font-size:13px;margin-top:8px;line-height:1.6;">'
+                'Es la <b>probabilidad risk-neutral</b> de que el call termine ITM:<br>'
+                'N(d₂) = P^Q(S_T &gt; K). Es la probabilidad bajo la medida $\\mathbb{Q}$ donde todos '
+                'los activos rinden la tasa libre de riesgo r — NO bajo la medida del mundo real.'
+                '</div></div>', unsafe_allow_html=True)
+
+        with st.expander("📐 Derivación step-by-step del PDE de BSM (Hull 15.6)"):
+            st.markdown("**Paso 1 — Modelo del subyacente bajo medida real $\\mathbb{P}$:**")
+            st.latex(r"dS = \mu S \, dt + \sigma S \, dz")
+            st.markdown("**Paso 2 — Construir un portfolio sin riesgo.** Long Δ acciones, short 1 call:")
+            st.latex(r"\Pi = -c + \Delta \cdot S")
+            st.markdown("Aplicando Itô a $c(S, t)$:")
+            st.latex(r"dc = \left(\frac{\partial c}{\partial t} + \mu S \frac{\partial c}{\partial S} + \frac{1}{2}\sigma^2 S^2 \frac{\partial^2 c}{\partial S^2}\right)dt + \sigma S \frac{\partial c}{\partial S}\, dz")
+            st.markdown("**Paso 3 — Elegir Δ = ∂c/∂S** para cancelar el término estocástico (dz):")
+            st.latex(r"d\Pi = \left(-\frac{\partial c}{\partial t} - \frac{1}{2}\sigma^2 S^2 \frac{\partial^2 c}{\partial S^2}\right)dt")
+            st.markdown("**Paso 4 — Como Π es libre de riesgo**, debe rendir r:")
+            st.latex(r"d\Pi = r \Pi \, dt = r\left(-c + S\frac{\partial c}{\partial S}\right)dt")
+            st.markdown("**Paso 5 — Igualando y reordenando, sale el PDE de BSM:**")
+            st.latex(r"\boxed{\frac{\partial c}{\partial t} + rS\frac{\partial c}{\partial S} + \frac{1}{2}\sigma^2 S^2 \frac{\partial^2 c}{\partial S^2} = rc}")
+            st.markdown(r"""
+**Paso 6 — Condiciones de frontera** (call europeo): $c(S, T) = \max(S - K, 0)$.
+
+**Paso 7 — Solución del PDE** vía cambio de variable a heat equation, o equivalentemente
+vía valuación risk-neutral:
+""")
+            st.latex(r"c = e^{-rT} \, \mathbb{E}^Q\!\left[\max(S_T - K, 0)\right]")
+            st.markdown(r"""
+Bajo $\mathbb{Q}$, $S_T$ es lognormal con drift r (en lugar de μ). La integral cerrada de
+$(S_T - K)^+$ contra la densidad lognormal da exactamente la fórmula de arriba — los
+dos términos vienen de partir la integral en "valor esperado de $S_T$ dado ITM" (que da el
+término $S_0 \cdot N(d_1)$) y "K veces probabilidad de ITM" (que da $K \cdot e^{-rT} \cdot N(d_2)$).
+""")
+
+        st.subheader("N(d₁) y N(d₂) vs moneyness")
+        st.caption("Mirá cómo ambas crecen de 0 a 1 a medida que el call se vuelve ITM. "
+                   "Siempre N(d₁) ≥ N(d₂) (porque d₁ ≥ d₂).")
+        S_grid = np.linspace(K4 * 0.5, K4 * 1.5, 100)
+        d1_grid = [(log(s/K4) + (r4 - q4 + 0.5*sig4**2)*T4) / (sig4*sqrt(T4)) for s in S_grid]
+        d2_grid = [d - sig4*sqrt(T4) for d in d1_grid]
+        Nd1_grid = [norm.cdf(d) for d in d1_grid]
+        Nd2_grid = [norm.cdf(d) for d in d2_grid]
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=S_grid, y=Nd1_grid, mode="lines",
+                                 line=dict(color="#3fb950", width=2.5), name="N(d₁) — delta"))
+        fig.add_trace(go.Scatter(x=S_grid, y=Nd2_grid, mode="lines",
+                                 line=dict(color="#d4af37", width=2.5), name="N(d₂) — P^Q(ITM)"))
+        fig.add_vline(x=K4, line=dict(color="white", dash="dot"),
+                      annotation_text=f"K = {K4:.2f}")
+        fig.add_vline(x=S4, line=dict(color="#58a6ff", dash="dash"),
+                      annotation_text=f"S₀ = {S4:.2f}")
+        fig.update_layout(template="plotly_dark", height=400,
+                          title="N(d₁) y N(d₂) vs spot",
+                          xaxis_title="S", yaxis_title="Probabilidad",
+                          margin=dict(l=10, r=10, t=40, b=10),
+                          legend=dict(orientation="h", yanchor="bottom", y=1.02))
+        st.plotly_chart(fig, use_container_width=True)
     except ValueError as e:
         st.error(f"Inputs inválidos: {e}")
-
-    # Densidades intuitivas: pdf de S_T y región in-the-money
-    if S4 > 0 and K4 > 0 and sigma4 > 0 and T4 > 0:
-        S_grid = np.linspace(max(0.01, S4 * 0.2), S4 * 2.0, 400)
-        mu_ln = log(S4) + (r4 - q4 - 0.5 * sigma4 ** 2) * T4
-        sd_ln = sigma4 * sqrt(T4)
-        pdf = (1 / (S_grid * sd_ln * sqrt(2 * np.pi))) * np.exp(
-            -((np.log(S_grid) - mu_ln) ** 2) / (2 * sd_ln ** 2)
-        )
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=S_grid, y=pdf, mode="lines",
-                                 line=dict(color="#d4af37", width=2), name="pdf S_T"))
-        mask = S_grid > K4
-        fig.add_trace(go.Scatter(x=S_grid[mask], y=pdf[mask], mode="lines",
-                                 fill="tozeroy", fillcolor="rgba(63, 185, 80, 0.3)",
-                                 line=dict(color="#3fb950", width=1),
-                                 name=f"S_T > K (área = N(d₂))"))
-        fig.add_vline(x=K4, line=dict(color="#f85149", dash="dash"),
-                      annotation_text="K")
-        fig.update_layout(template="plotly_dark", height=380,
-                          title="Densidad risk-neutral de S_T — el área verde es N(d₂)",
-                          xaxis_title="S_T", yaxis_title="Densidad",
-                          margin=dict(l=10, r=10, t=40, b=10))
-        st.plotly_chart(fig, use_container_width=True)

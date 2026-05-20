@@ -16,7 +16,7 @@ from pricing.ir_futures import (
     day_count_factor, conversion_factor, cheapest_to_deliver,
     eurodollar_convexity_adjustment, duration_based_hedge_contracts,
 )
-from ui.styling import inject_premium_css
+from ui.styling import inject_premium_css, output_card, info_box, hull_check
 from ui.components.header_strip import render_header_strip
 
 st.set_page_config(page_title="U3 — IR Futures", page_icon="📅", layout="wide",
@@ -84,12 +84,15 @@ El bono con menor cost of delivery es el **cheapest-to-deliver (CTD)**.
     coupon = c1.slider("Cupón del bono (anual)", 0.0, 0.20, 0.12, 0.005, format="%.3f")
     ttm = c2.slider("Años a vencimiento", 1.0, 30.0, 20.0, 0.5)
     cf = conversion_factor(coupon, ttm)
-    st.metric("Conversion factor", f"{cf:.6f}",
-              help=f"Cupón {coupon:.1%}, plazo {ttm:.1f} años, descontado a ytm=6% semianual")
-    st.caption(f"**Sanity check:** un bono con cupón = 6% (igual al ytm de referencia CBOT) "
-               f"debe dar CF = 1.0 exacto. Probá: poné cupón en 0.060.")
-    st.caption(f"Hull Cap 6, ejemplo conceptual: cupón 12%, 20 años → CF en el orden de 1.69-1.70. "
-               f"Tu cálculo: {cf:.4f}.")
+    st.markdown(output_card("Conversion factor", f"{cf:.6f}",
+                            hint=f"Cupón {coupon:.1%}, plazo {ttm:.1f} años, ytm=6% semianual",
+                            color="accent"), unsafe_allow_html=True)
+    st.caption("**Sanity check:** un bono con cupón = 6% (igual al ytm de referencia CBOT) "
+               "debe dar CF = 1.0 exacto. Probá: poné cupón en 0.060.")
+    if abs(coupon - 0.12) < 1e-6 and abs(ttm - 20.0) < 0.01:
+        hull_check(1.6997, cf, label="Conversion factor (Hull 6.2: 12%/20y)", tolerance=0.005)
+    elif abs(coupon - 0.06) < 1e-6:
+        hull_check(1.0, cf, label="Sanity: par bond (cupón = ytm 6%)", tolerance=1e-5)
 
     st.divider()
     st.subheader("Cheapest-to-deliver entre múltiples bonos")

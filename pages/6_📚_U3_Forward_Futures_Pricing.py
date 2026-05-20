@@ -9,6 +9,7 @@ from math import log as ln
 
 import numpy as np
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import streamlit as st
 
 from pricing.forwards import forward_price, cost_of_carry
@@ -60,29 +61,110 @@ Cost of carry **c = r − q + u − y**. Si c > 0 → mercado en contango (F > S
     m3.metric("Mercado en", "Contango" if F > S0 else ("Backwardation" if F < S0 else "Flat"))
 
 with tab2:
-    st.markdown("""
-**Contango**: F > S → forward prices más altos. Típico en assets con cost of carry positivo
-(commodities almacenables sin escasez, equity sin dividendos altos).
+    st.header("Contango vs Backwardation")
+    st.markdown(
+        "Dos regímenes de **estructura de plazos de futuros**. La diferencia clave: "
+        "el signo del cost of carry **c = r − q + u − y**."
+    )
 
-**Backwardation**: F < S → forwards más baratos. Indica escasez física, demanda inmediata
-del activo (convenience yield alto: oil en crisis, gas en invierno) o dividend yield > r.
-""")
+    col_c, col_b = st.columns(2)
+    with col_c:
+        st.markdown(
+            '<div class="premium-card" style="border-left:3px solid var(--positive); '
+            'background: rgba(63,185,80,0.05);">'
+            '<div style="color:var(--positive);font-weight:600;font-size:18px;">▲ CONTANGO</div>'
+            '<div style="font-family:JetBrains Mono;color:var(--text);font-size:14px;margin-top:8px;">F > S</div>'
+            '<div style="color:var(--text-muted);font-size:13px;margin-top:8px;line-height:1.6;">'
+            'Forwards <b>más caros</b> que el spot. Cost of carry positivo: pagás r '
+            'para financiar el spot, ahorrás q en dividendos.<br><br>'
+            '<b>Ejemplos reales:</b><br>'
+            '• Oro casi siempre (es asset financiero, almacenable, sin dividend).<br>'
+            '• S&P 500 cuando r &gt; div yield (la mayor parte del tiempo).<br>'
+            '• Commodities almacenables sin shortage (cobre normal, soja en cosecha).'
+            '</div></div>', unsafe_allow_html=True,
+        )
+    with col_b:
+        st.markdown(
+            '<div class="premium-card" style="border-left:3px solid var(--negative); '
+            'background: rgba(248,81,73,0.05);">'
+            '<div style="color:var(--negative);font-weight:600;font-size:18px;">▼ BACKWARDATION</div>'
+            '<div style="font-family:JetBrains Mono;color:var(--text);font-size:14px;margin-top:8px;">F < S</div>'
+            '<div style="color:var(--text-muted);font-size:13px;margin-top:8px;line-height:1.6;">'
+            'Forwards <b>más baratos</b> que el spot. Convenience yield alto o dividend yield &gt; r. '
+            'El mercado paga premium por tener el físico ya.<br><br>'
+            '<b>Ejemplos reales:</b><br>'
+            '• Oil WTI en crisis (2022 invasión Rusia: backwardation fuerte por shortage).<br>'
+            '• Gas natural en invierno (demanda inmediata).<br>'
+            '• Equity con dividendos muy altos (REITs, MLPs).'
+            '</div></div>', unsafe_allow_html=True,
+        )
+
+    st.subheader("Curva de forwards (F₀ vs T)")
     S0_v = 100.0
     Ts = np.linspace(0, 2, 50)
-    carry_scenarios = {"Contango fuerte (c=8%)": 0.08, "Contango leve (c=2%)": 0.02,
-                       "Flat (c=0%)": 0.0, "Backwardation (c=-5%)": -0.05}
+    carry_scenarios = {
+        "Contango fuerte (c=+8%)": (0.08, "#3fb950"),
+        "Contango leve (c=+2%)": (0.02, "#7ee787"),
+        "Flat (c=0%)": (0.0, "#8b949e"),
+        "Backwardation leve (c=−3%)": (-0.03, "#ffa198"),
+        "Backwardation fuerte (c=−8%)": (-0.08, "#f85149"),
+    }
     fig = go.Figure()
-    colors = ["#d4af37", "#58a6ff", "#8b949e", "#f85149"]
-    for (label, c), color in zip(carry_scenarios.items(), colors):
+    for label, (c, color) in carry_scenarios.items():
         Fs = S0_v * np.exp(c * Ts)
         fig.add_trace(go.Scatter(x=Ts, y=Fs, mode="lines", name=label,
-                                 line=dict(color=color, width=2)))
-    fig.add_hline(y=S0_v, line=dict(color="white", dash="dot"), annotation_text="Spot")
+                                 line=dict(color=color, width=2.5)))
+    fig.add_hline(y=S0_v, line=dict(color="white", dash="dot"), annotation_text="Spot = 100")
     fig.update_layout(template="plotly_dark", height=420,
-                      title="Curva de forwards bajo distintos cost of carry",
+                      title="F₀ = S₀·e^(c·T) — 5 regímenes",
                       xaxis_title="T (años)", yaxis_title="F₀",
-                      margin=dict(l=10, r=10, t=40, b=10))
+                      margin=dict(l=10, r=10, t=40, b=10),
+                      legend=dict(orientation="v", x=0.02, y=0.98))
     st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("Term structure: estructura de plazos de los futuros listados")
+    st.caption("Así se ve un panel de futuros listados en un exchange real (ej. CME): "
+               "cada barra es un contrato con su propio vencimiento.")
+    expiries = ["1M", "3M", "6M", "9M", "1Y", "18M", "2Y"]
+    T_expiries = [1/12, 3/12, 6/12, 9/12, 1.0, 1.5, 2.0]
+    regimes = {"Contango": 0.05, "Flat": 0.0, "Backwardation": -0.05}
+    fig_ts = make_subplots(rows=1, cols=3, subplot_titles=list(regimes.keys()))
+    col_idx = 1
+    for regime, c in regimes.items():
+        Fs = [S0_v * np.exp(c * t) for t in T_expiries]
+        color = "#3fb950" if c > 0 else ("#f85149" if c < 0 else "#8b949e")
+        fig_ts.add_trace(
+            go.Bar(x=expiries, y=Fs, marker_color=color, showlegend=False,
+                   text=[f"{f:.1f}" for f in Fs], textposition="outside"),
+            row=1, col=col_idx,
+        )
+        fig_ts.add_hline(y=S0_v, line=dict(color="white", dash="dot"),
+                         row=1, col=col_idx)
+        col_idx += 1
+    fig_ts.update_layout(template="plotly_dark", height=380,
+                         margin=dict(l=10, r=10, t=50, b=10),
+                         yaxis=dict(range=[88, 112]),
+                         yaxis2=dict(range=[88, 112]),
+                         yaxis3=dict(range=[88, 112]))
+    st.plotly_chart(fig_ts, use_container_width=True)
+
+    st.subheader("Evolución del spread (F − S) a medida que pasa el tiempo")
+    st.caption("Asumiendo que el spot no se mueve, el spread futuro-spot **converge a 0** "
+               "en el vencimiento. La velocidad depende del cost of carry.")
+    T_grid = np.linspace(0, 1, 100)
+    fig_sp = go.Figure()
+    for label, (c, color) in carry_scenarios.items():
+        spread = S0_v * (np.exp(c * (1 - T_grid)) - 1)
+        fig_sp.add_trace(go.Scatter(x=T_grid, y=spread, mode="lines",
+                                     line=dict(color=color, width=2), name=label))
+    fig_sp.add_hline(y=0, line=dict(color="white", dash="dot"),
+                     annotation_text="Convergencia: F → S al vencimiento")
+    fig_sp.update_layout(template="plotly_dark", height=380,
+                         title="Spread (F − S) en función del tiempo (T=1 año)",
+                         xaxis_title="t (años transcurridos)", yaxis_title="F − S",
+                         margin=dict(l=10, r=10, t=40, b=10),
+                         legend=dict(orientation="v", x=1.02, y=1))
+    st.plotly_chart(fig_sp, use_container_width=True)
 
 with tab3:
     st.markdown(r"""

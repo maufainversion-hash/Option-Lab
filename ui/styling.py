@@ -258,3 +258,70 @@ code, .mono {
 def inject_premium_css() -> None:
     """Inyecta el CSS custom. Llamar al tope de cada page después de set_page_config."""
     st.markdown(_CSS, unsafe_allow_html=True)
+
+
+def output_card(label: str, value: str, *, hint: str = "", color: str = "accent",
+                width_pct: int = 100) -> str:
+    """
+    Devuelve HTML de una card de output monospace.
+    color: 'accent' (gold), 'positive' (verde), 'negative' (rojo), 'info' (azul), 'muted'.
+    Usar con st.markdown(..., unsafe_allow_html=True), o componer varias en una row.
+    """
+    color_map = {
+        "accent": "var(--accent)", "positive": "var(--positive)",
+        "negative": "var(--negative)", "info": "var(--info)", "muted": "var(--text-muted)",
+    }
+    c = color_map.get(color, "var(--accent)")
+    hint_html = (f'<div style="color:var(--text-muted);font-size:10px;'
+                 f'margin-top:4px;">{hint}</div>') if hint else ""
+    return (
+        f'<div class="premium-card" style="width:{width_pct}%;">'
+        f'<div style="color:var(--text-muted);font-size:11px;'
+        f'text-transform:uppercase;letter-spacing:0.5px;">{label}</div>'
+        f'<div style="font-family:JetBrains Mono;color:{c};font-size:22px;'
+        f'font-weight:600;margin-top:4px;">{value}</div>'
+        f'{hint_html}</div>'
+    )
+
+
+def info_box(text: str, *, kind: str = "info") -> None:
+    """
+    Box informativo más bonito que st.info default.
+    kind: 'info' (azul), 'success' (verde), 'warning' (amarillo), 'hull' (gold, Hull ref).
+    """
+    border_map = {"info": "#58a6ff", "success": "#3fb950",
+                  "warning": "#d29922", "hull": "#d4af37"}
+    bg_map = {"info": "rgba(88,166,255,0.08)", "success": "rgba(63,185,80,0.08)",
+              "warning": "rgba(210,153,34,0.08)", "hull": "rgba(212,175,55,0.10)"}
+    border = border_map.get(kind, "#58a6ff")
+    bg = bg_map.get(kind, "rgba(88,166,255,0.08)")
+    icon = {"info": "ℹ", "success": "✓", "warning": "⚠", "hull": "📘"}.get(kind, "ℹ")
+    st.markdown(
+        f'<div style="border-left:3px solid {border}; background:{bg}; '
+        f'padding:10px 14px; border-radius:4px; margin:8px 0; font-size:13px;">'
+        f'<b>{icon}</b>  {text}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def hull_check(expected: float, calculated: float, *, label: str,
+               tolerance: float = 0.005, units: str = "") -> None:
+    """
+    Muestra una row con: Hull esperado | tu cálculo | ✓ o ✗.
+    Usa tolerancia relativa si abs(expected) > 1, absoluta sino.
+    """
+    rel_tol = tolerance if abs(expected) > 1 else 0
+    abs_tol = tolerance if abs(expected) <= 1 else 0
+    matches = abs(calculated - expected) <= max(abs_tol, abs(expected) * rel_tol)
+    check_icon = "✓" if matches else "✗"
+    check_color = "#3fb950" if matches else "#f85149"
+    st.markdown(
+        f'<div style="border:1px solid var(--border); background:rgba(212,175,55,0.06); '
+        f'border-radius:6px; padding:10px 14px; margin:8px 0; '
+        f'display:flex; justify-content:space-between; align-items:center; font-family:JetBrains Mono;">'
+        f'<span style="color:var(--text-muted);font-size:11px;">{label}</span>'
+        f'<span>Hull: <b style="color:var(--accent);">{expected}{units}</b> '
+        f'&nbsp;|&nbsp; Calc: <b style="color:var(--text);">{calculated:.4f}{units}</b> '
+        f'&nbsp;<span style="color:{check_color};font-size:18px;font-weight:700;">{check_icon}</span></span>'
+        f'</div>', unsafe_allow_html=True,
+    )
