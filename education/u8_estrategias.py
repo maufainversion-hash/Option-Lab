@@ -18,6 +18,7 @@ from ui.charts.payoff_diagram import payoff_chart
 # ============================================================
 STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
     "Long Call": {
+        "compo": "1 long call",
         "cuando": "Esperás que el subyacente **suba fuerte** dentro del horizonte T. "
                   "Querés exposición direccional bullish con riesgo limitado al premium pagado.",
         "quien": "**Especulador bullish** con tesis concreta (earnings positivos, M&A, "
@@ -32,6 +33,7 @@ STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
                   "ejercicio ITM (N(d₂)) suele ser 30-50% para calls OTM cortos.",
     },
     "Long Put": {
+        "compo": "1 long put",
         "cuando": "Esperás que el subyacente **caiga fuerte**. Versión bearish del long call.",
         "quien": "**Especulador bearish** (tesis de caída por crisis sectorial, earnings malos, "
                  "factor macro adverso), o **hedger** que protege una posición long sin venderla.",
@@ -45,6 +47,7 @@ STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
                   "(volatility skew lo amplifica todavía más).",
     },
     "Covered Call": {
+        "compo": "1 long stock  +  1 short call  (K > spot)",
         "cuando": "Tenés stock long y esperás que se mueva **lateral o suba poco**. Estrategia de "
                   "**income generation** sobre posiciones existentes.",
         "quien": "**Holders de stock** que quieren generar yield extra sobre acciones que ya tienen. "
@@ -59,6 +62,7 @@ STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
                   "premium a cambio de aceptar la asignación.",
     },
     "Protective Put": {
+        "compo": "1 long stock  +  1 long put  (K < spot)",
         "cuando": "Tenés stock long y querés un **seguro contra una caída fuerte**, sin vender la "
                   "posición.",
         "quien": "**Inversor long** que teme un evento de cola (crisis, earnings malos, decisión "
@@ -73,6 +77,7 @@ STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
                   "rolleada todo el año, el costo acumulado puede ser 5-10% del valor de la posición.",
     },
     "Bull Call Spread": {
+        "compo": "1 long call K₁  +  1 short call K₂   (K₁ < K₂)",
         "cuando": "Esperás que el subyacente **suba moderado** (no x10). Querés bajar el costo del "
                   "long call aceptando un techo al profit.",
         "quien": "**Especulador moderadamente bullish** que tiene un price target concreto. Trader que "
@@ -86,6 +91,7 @@ STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
                   "cambio de menos upside.",
     },
     "Bear Put Spread": {
+        "compo": "1 long put K₂  +  1 short put K₁   (K₁ < K₂)",
         "cuando": "Esperás que el subyacente **baje moderado**. Versión bearish del bull call spread.",
         "quien": "**Especulador moderadamente bearish** con price target. Igual que bull call pero al "
                  "revés.",
@@ -97,6 +103,7 @@ STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
                   "fuerte (ej. fraude contable, crash sectorial), hubieras ganado más con long put simple.",
     },
     "Long Straddle": {
+        "compo": "1 long call  +  1 long put   (mismo strike K = spot, mismo vencimiento)",
         "cuando": "Esperás un **movimiento GRANDE pero NO sabés en qué dirección**. Apuesta de "
                   "volatilidad pura (long vega) para eventos binarios.",
         "quien": "**Especuladores de volatilidad** y traders pre-evento (earnings reports, decisiones "
@@ -110,6 +117,7 @@ STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
                   "vega aunque el direccional haya estado bien.",
     },
     "Long Strangle": {
+        "compo": "1 long call K₂  +  1 long put K₁   (K₁ < spot < K₂, ambos OTM)",
         "cuando": "Igual setup que straddle pero querés **gastar menos premium**. Necesitás "
                   "movimiento aún mayor para ganar.",
         "quien": "**Especulador de vol** que quiere bajar el costo del straddle aceptando un "
@@ -123,6 +131,7 @@ STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
                   "compensar.",
     },
     "Butterfly (calls)": {
+        "compo": "1 long call K₁  +  2 short calls K₂  +  1 long call K₃   (K₁ < K₂ < K₃ equidistantes)",
         "cuando": "Tenés una tesis **muy precisa** sobre dónde va a terminar el spot al vencimiento. "
                   "Apuesta direccional + apuesta de baja vol simultánea.",
         "quien": "**Traders sofisticados** con vista pinpoint sobre el target. Common en mesas de "
@@ -137,6 +146,7 @@ STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
                   "como apuesta principal del portfolio.",
     },
     "Iron Condor": {
+        "compo": "1 long put K₁  +  1 short put K₂  +  1 short call K₃  +  1 long call K₄   (K₁<K₂<spot<K₃<K₄)",
         "cuando": "Esperás que el subyacente se mantenga **LATERAL** en un rango definido. Apuesta de "
                   "baja volatilidad realizada vs alta IV implícita.",
         "quien": "**Theta sellers** que venden volatilidad sistemáticamente (income strategies de "
@@ -153,6 +163,7 @@ STRATEGY_CONTEXT: dict[str, dict[str, str]] = {
                   "loss disciplinado es crítico.",
     },
     "Collar": {
+        "compo": "1 long stock  +  1 long put K_p  +  1 short call K_c   (K_p < spot < K_c)",
         "cuando": "Tenés stock long con **ganancia acumulada** y querés protegerla **sin pagar "
                   "premium**. Combina protective put con covered call para financiarlo.",
         "quien": "**Holders de stocks con ganancia significativa** (empleados con stock options "
@@ -309,6 +320,17 @@ def render() -> None:
         ctx = STRATEGY_CONTEXT[strat_name]
         st.markdown("---")
         st.subheader(f"📚 {strat_name} — guía práctica")
+
+        # Composición — patas del combo en notación compacta
+        st.markdown(
+            f'<div class="premium-card" style="border-left:3px solid var(--accent);'
+            f'background:rgba(212,175,55,0.06); margin-bottom:16px;">'
+            f'<div style="color:var(--text-muted);font-size:11px;'
+            f'text-transform:uppercase;letter-spacing:0.5px;">🧱 Composición</div>'
+            f'<div style="font-family:JetBrains Mono;color:var(--text);font-size:15px;'
+            f'font-weight:500;margin-top:6px;">{ctx["compo"]}</div></div>',
+            unsafe_allow_html=True,
+        )
 
         cc1, cc2 = st.columns(2)
         with cc1:
