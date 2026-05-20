@@ -18,11 +18,13 @@ def render() -> None:
         'Hull Cap 5 y 6. Cost of carry, dividends, storage, contango/backwardation.'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Pricing genérico",
         "Contango vs Backwardation",
         "Convenience yield",
         "Valor de la Posición",
+        "C&C vs RC&C (timeline)",
+        "Forward FX (escenarios)",
     ])
 
     with tab1:
@@ -296,3 +298,159 @@ por barril**. Ganaste porque F₀ ($25.633) > K ($24).
 > Probá los inputs default (S₀=25, K=24, r=5%, T=0.5) en la calculadora de
 > arriba y deberías ver exactamente este resultado.
 """)
+
+    with tab5:
+        st.header("Cash & Carry vs Reverse Cash & Carry — Timeline")
+        st.markdown(r"""
+Estas son las dos estrategias de **arbitraje** que enforce el forward price.
+
+**Cash & Carry (C&C)** se ejecuta cuando el **forward está caro** (F₀ > S₀·e^{rT}):
+1. **t=0**: pedís prestado $S₀$, comprás el activo spot, shorteás el forward a F₀.
+2. **t=T**: entregás el activo, cobrás K=F₀, devolvés el préstamo S₀·e^{rT}.
+3. **Profit risk-free**: F₀ − S₀·e^{rT} > 0. Arbitraje puro.
+
+**Reverse Cash & Carry (RC&C)** se ejecuta cuando el **forward está barato** (F₀ < S₀·e^{rT}):
+1. **t=0**: shorteás el activo (cobrás S₀), invertís a la tasa, vas long el forward a F₀.
+2. **t=T**: cobrás S₀·e^{rT}, comprás el activo a F₀, devolvés el short.
+3. **Profit risk-free**: S₀·e^{rT} − F₀ > 0.
+
+En equilibrio: **F₀ = S₀·e^{rT}** (los arbitrajistas presionan el precio hasta ahí).
+""")
+
+        st.subheader("Calculadora — dos escenarios lado a lado")
+        c1, c2, c3 = st.columns(3)
+        S_cc = c1.number_input("Spot S₀", value=40.0, step=1.0, key="cc_S")
+        r_cc = c2.number_input("Tasa r (cc)", value=0.05, step=0.005,
+                                format="%.4f", key="cc_r")
+        T_cc = c3.number_input("T (años)", value=1.0, step=0.25, key="cc_T")
+
+        F_fair = S_cc * np.exp(r_cc * T_cc)
+        st.caption(f"**Forward justo (no-arbitraje)**: F₀* = S₀·e^(rT) = {F_fair:.4f}")
+
+        c4, c5 = st.columns(2)
+        F_high = c4.number_input("F₀ observado (escenario CARO)",
+                                  value=float(F_fair) + 3.0, step=0.5, key="cc_Fhigh")
+        F_low = c5.number_input("F₀ observado (escenario BARATO)",
+                                 value=float(F_fair) - 3.0, step=0.5, key="cc_Flow")
+
+        st.markdown("---")
+        col_cc, col_rc = st.columns(2)
+        with col_cc:
+            st.markdown(
+                f'<div class="premium-card" style="border-left:3px solid var(--positive);'
+                f'background:rgba(63,185,80,0.05);">'
+                f'<div style="color:var(--positive);font-weight:600;font-size:16px;">'
+                f'▲ CASH & CARRY (F₀={F_high:.2f} &gt; F* = {F_fair:.2f})</div>'
+                f'<div style="font-family:JetBrains Mono;font-size:13px;color:var(--text);'
+                f'margin-top:10px;line-height:1.7;">'
+                f'<b>t=0</b>:<br>'
+                f'&nbsp;&nbsp;• Pedís prestado ${S_cc:.2f} a tasa {r_cc*100:.2f}%<br>'
+                f'&nbsp;&nbsp;• Comprás activo spot (cash out ${S_cc:.2f})<br>'
+                f'&nbsp;&nbsp;• Shorteás forward a {F_high:.2f}<br>'
+                f'&nbsp;&nbsp;• Cash flow neto: <b>$0</b><br><br>'
+                f'<b>t=T (T={T_cc:.2f} años)</b>:<br>'
+                f'&nbsp;&nbsp;• Entregás activo (sale del balance)<br>'
+                f'&nbsp;&nbsp;• Cobrás forward: <b style="color:var(--positive);">+${F_high:.2f}</b><br>'
+                f'&nbsp;&nbsp;• Devolvés préstamo: <b style="color:var(--negative);">−${F_fair:.2f}</b><br>'
+                f'&nbsp;&nbsp;• Profit risk-free: <b style="color:var(--accent);font-size:18px;">'
+                f'${F_high - F_fair:+.4f}</b>'
+                f'</div></div>', unsafe_allow_html=True,
+            )
+        with col_rc:
+            st.markdown(
+                f'<div class="premium-card" style="border-left:3px solid var(--negative);'
+                f'background:rgba(248,81,73,0.05);">'
+                f'<div style="color:var(--negative);font-weight:600;font-size:16px;">'
+                f'▼ REVERSE C&C (F₀={F_low:.2f} &lt; F* = {F_fair:.2f})</div>'
+                f'<div style="font-family:JetBrains Mono;font-size:13px;color:var(--text);'
+                f'margin-top:10px;line-height:1.7;">'
+                f'<b>t=0</b>:<br>'
+                f'&nbsp;&nbsp;• Shorteás activo spot (cash in ${S_cc:.2f})<br>'
+                f'&nbsp;&nbsp;• Invertís ${S_cc:.2f} a tasa {r_cc*100:.2f}%<br>'
+                f'&nbsp;&nbsp;• Long forward a {F_low:.2f}<br>'
+                f'&nbsp;&nbsp;• Cash flow neto: <b>$0</b><br><br>'
+                f'<b>t=T (T={T_cc:.2f} años)</b>:<br>'
+                f'&nbsp;&nbsp;• Recibís inversión: <b style="color:var(--positive);">+${F_fair:.2f}</b><br>'
+                f'&nbsp;&nbsp;• Comprás activo via forward: <b style="color:var(--negative);">−${F_low:.2f}</b><br>'
+                f'&nbsp;&nbsp;• Cubrís el short (activo va al lender)<br>'
+                f'&nbsp;&nbsp;• Profit risk-free: <b style="color:var(--accent);font-size:18px;">'
+                f'${F_fair - F_low:+.4f}</b>'
+                f'</div></div>', unsafe_allow_html=True,
+            )
+
+        st.info(
+            "**Cuando el mercado está en equilibrio**, F₀ = F* exactamente y NO hay "
+            "arbitraje. Cualquier desvío (asumiendo costos de transacción cero) sería "
+            "explotado por los arbitrajistas hasta cerrar el spread."
+        )
+
+    with tab6:
+        st.header("Forward de Monedas — escenarios AUDUSD")
+        st.markdown(r"""
+Un exportador australiano va a cobrar **AUD 1,000,000** en T años. Para fijar
+el valor en USD, puede entrar a un forward FX. Veamos cómo termina el resultado
+en distintos escenarios de spot al vencimiento.
+
+**Datos**: spot AUDUSD = 0.8000, forward 1Y = 0.8100, monto cobrado AUD 1M, T=1.
+
+El forward implícito (covered interest parity): el AUD se aprecia (USD se deprecia)
+hacia 0.8100 a 1 año.
+""")
+        cc1, cc2, cc3, cc4 = st.columns(4)
+        spot_fx = cc1.number_input("Spot AUDUSD (USD por AUD)", value=0.8000,
+                                    step=0.01, format="%.4f", key="fx_spot")
+        fwd_fx = cc2.number_input("Forward 1Y", value=0.8100, step=0.01,
+                                   format="%.4f", key="fx_fwd")
+        aud_amount = cc3.number_input("Monto AUD a cobrar", value=1_000_000,
+                                       step=10000, key="fx_aud")
+        t_fwd = cc4.number_input("T (años)", value=1.0, step=0.25, key="fx_T")
+
+        st.markdown("---")
+        st.subheader("Comparación: con hedge vs sin hedge bajo 4 escenarios de spot a vencimiento")
+
+        scenarios = []
+        for st_t in [0.7500, 0.8000, 0.8500, 0.9000]:
+            # Sin hedge: cobra AUD, convierte al spot del momento
+            usd_unhedged = aud_amount * st_t
+            # Con hedge (long forward AUD): convierte al rate forward
+            usd_hedged = aud_amount * fwd_fx
+            # P&L del hedge (con respecto a no hedgear)
+            hedge_pnl = usd_hedged - usd_unhedged
+            scenarios.append({
+                "Spot AUDUSD en T": f"{st_t:.4f}",
+                "USD sin hedge": f"${usd_unhedged:,.0f}",
+                "USD con forward": f"${usd_hedged:,.0f}",
+                "P&L hedge": f"${hedge_pnl:+,.0f}",
+            })
+
+        df_fx = pd.DataFrame(scenarios)
+        st.dataframe(df_fx, hide_index=True, use_container_width=True)
+
+        st.markdown("---")
+        # Plot del payoff del hedge
+        st_grid = np.linspace(0.65, 0.95, 60)
+        usd_unhedged_grid = aud_amount * st_grid
+        usd_hedged_grid = np.full_like(st_grid, aud_amount * fwd_fx)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=st_grid, y=usd_unhedged_grid / 1e6, mode="lines",
+                                  name="Sin hedge", line=dict(color="#f85149", width=2)))
+        fig.add_trace(go.Scatter(x=st_grid, y=usd_hedged_grid / 1e6, mode="lines",
+                                  name="Con forward (fija a F₀)", line=dict(color="#3fb950", width=2.5)))
+        fig.add_vline(x=spot_fx, line=dict(color="white", dash="dot"),
+                       annotation_text=f"Spot inicial {spot_fx:.4f}")
+        fig.add_vline(x=fwd_fx, line=dict(color="#d4af37", dash="dash"),
+                       annotation_text=f"Forward {fwd_fx:.4f}")
+        fig.update_layout(template="plotly_dark", height=380,
+                           title="USD recibidos al vencimiento por AUD 1M cobrados",
+                           xaxis_title="Spot AUDUSD al vencimiento",
+                           yaxis_title="USD recibidos (millones)",
+                           margin=dict(l=10, r=10, t=40, b=10),
+                           legend=dict(orientation="h", yanchor="bottom", y=1.02))
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.info(
+            f"**Insight**: el forward te fija el USD a recibir en exactamente "
+            f"${aud_amount * fwd_fx:,.0f}, sin importar dónde termine el spot. "
+            f"Si el AUD se aprecia más allá de {fwd_fx:.4f}, hubieras estado mejor "
+            f"sin hedge — pero ese es el precio de la **certeza**."
+        )

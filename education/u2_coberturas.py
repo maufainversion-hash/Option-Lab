@@ -4,6 +4,8 @@ import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
+import pandas as pd
+
 from pricing.forwards import minimum_variance_hedge_ratio, equity_portfolio_hedge_contracts
 
 
@@ -14,7 +16,12 @@ def render() -> None:
         'Hull Cap 3. Hedge ratio óptimo, basis risk, cobertura de equity portfolios via beta.'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["Hedge ratio óptimo", "Basis risk", "Hedge de equity portfolio"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Hedge ratio óptimo",
+        "Basis risk",
+        "Hedge de equity portfolio",
+        "Cross Hedging Descompuesto",
+    ])
 
     with tab1:
         st.markdown(r"""
@@ -128,3 +135,142 @@ def render() -> None:
         n_change = (beta_target - beta) * V_A / (F * mult)
         c6.metric(f"Contratos para mover β de {beta:.2f} → {beta_target:.2f}",
                   f"{n_change:+.1f}", help="Positivo = comprar; negativo = vender")
+
+        with st.expander("📈 Sensibilidad S&P 500: portfolio hedged vs sin hedge"):
+            st.markdown(
+                "Un portfolio cubierto con futuros se comporta **como risk-free**: gana "
+                "aproximadamente la tasa libre independientemente del movimiento del índice."
+            )
+            sp1, sp2 = st.columns(2)
+            with sp1:
+                V0_sp = sp1.number_input("Valor portfolio ($M)", value=5.0, step=0.1,
+                                          key="sp_V0") * 1_000_000
+                S0_sp = sp1.number_input("S&P 500 inicial", value=1000, step=10, key="sp_S0")
+                rf_sp = sp1.number_input("Tasa risk-free (%)", value=2.0, step=0.1,
+                                          key="sp_rf") / 100
+            with sp2:
+                T_sp = sp2.number_input("Período (meses)", value=3, min_value=1,
+                                         max_value=12, key="sp_T") / 12
+                mult_sp = sp2.number_input("Multiplicador S&P", value=250, key="sp_mult")
+
+            N_sp = V0_sp / (S0_sp * mult_sp)
+            st.info(
+                f"**Setup**: portfolio ${V0_sp/1e6:.2f}M, "
+                f"N* contratos short = {N_sp:.1f} (cada contrato cubre "
+                f"${S0_sp * mult_sp:,.0f})."
+            )
+
+            scenarios = []
+            for ST in range(900, 1101, 20):
+                portfolio_return = (ST - S0_sp) / S0_sp
+                V_unhedged = V0_sp * (1 + portfolio_return)
+                futures_gain = N_sp * (S0_sp - ST) * mult_sp
+                V_hedged = V_unhedged + futures_gain
+                V_rf = V0_sp * np.exp(rf_sp * T_sp)
+                scenarios.append({
+                    "S&P 500 final": ST,
+                    "Portfolio sin hedge": V_unhedged,
+                    "Ganancia futuros": futures_gain,
+                    "Portfolio hedged": V_hedged,
+                    "Target risk-free": V_rf,
+                })
+            df_sp = pd.DataFrame(scenarios)
+            df_display = df_sp.copy()
+            df_display["S&P 500 final"] = df_display["S&P 500 final"].apply(lambda x: f"{x:,}")
+            for col in ["Portfolio sin hedge", "Ganancia futuros", "Portfolio hedged",
+                        "Target risk-free"]:
+                df_display[col] = df_sp[col].apply(
+                    lambda x: f"${x/1e6:+.3f}M" if col == "Ganancia futuros" else f"${x/1e6:.3f}M"
+                )
+            st.dataframe(df_display, hide_index=True, use_container_width=True)
+
+            avg_hedged = df_sp["Portfolio hedged"].mean()
+            std_hedged = df_sp["Portfolio hedged"].std()
+            target_rf = df_sp["Target risk-free"].iloc[0]
+            st.success(
+                f"**Portfolio hedged promedio**: ${avg_hedged/1e6:.3f}M ± "
+                f"${std_hedged/1e3:.1f}k. **Target risk-free**: ${target_rf/1e6:.3f}M. "
+                f"El portfolio hedged se mantiene cuasi-constante a través de un rango "
+                f"de ±10% del S&P — el hedge convierte el riesgo de mercado en rendimiento risk-free."
+            )
+
+    with tab4:
+        st.header("Cross Hedging — descomposición del ingreso")
+        st.markdown(r"""
+En **cross hedging** cubrís un activo (S₂) usando futuros de OTRO activo relacionado (F₁).
+Ejemplo clásico: aerolínea cubre **costo de nafta** usando futuros de **crudo WTI**.
+
+Al vencimiento, tu ingreso total tiene **tres componentes**:
+
+$$\text{Ingreso} = F_1 + (S_2^* - F_2) + (S_2 - S_2^*)$$
+
+- **F₁**: ganancia/pérdida en el futuro que tradeaste
+- **(S₂* − F₂)**: "riesgo de base" si el futuro fuera sobre tu mismo activo (inevitable)
+- **(S₂ − S₂*)**: efecto correlación imperfecta (costo del cross-hedging)
+""")
+
+        cca, ccb = st.columns(2)
+        with cca:
+            st.markdown("#### Inputs")
+            F1 = st.number_input("F₁: precio futuro al cerrar la posición", value=65.0,
+                                  step=0.5, help="Cierre del futuro que usaste (ej: crudo)")
+            S2_star = st.number_input("S₂*: spot del activo SUBYACENTE del futuro",
+                                       value=63.0, step=0.5,
+                                       help="Spot del activo del futuro al vencimiento (ej: crudo spot)")
+            F2 = st.number_input("F₂: precio futuro inicial del activo subyacente",
+                                  value=62.0, step=0.5)
+            S2 = st.number_input("S₂: spot de TU activo (el que necesitabas hedgear)",
+                                  value=64.5, step=0.5, help="Ej: nafta spot al vencimiento")
+        with ccb:
+            st.markdown("#### Descomposición")
+            comp_1 = F1
+            comp_2 = S2_star - F2
+            comp_3 = S2 - S2_star
+            total = comp_1 + comp_2 + comp_3
+            st.metric("① F₁ (ganancia futuro)", f"${comp_1:.2f}")
+            st.metric("② (S₂* − F₂) — base mismo activo", f"${comp_2:+.2f}")
+            st.metric("③ (S₂ − S₂*) — efecto correlación", f"${comp_3:+.2f}")
+            st.markdown("---")
+            st.metric("**Ingreso total por unidad**", f"${total:.2f}")
+
+        st.markdown("---")
+        if abs(comp_3) > abs(comp_2):
+            st.warning(
+                f"El efecto de correlación imperfecta (③ = ${comp_3:+.2f}) es **mayor** "
+                f"que el riesgo de base (② = ${comp_2:+.2f}). En este escenario, el "
+                f"cross-hedging agrega más riesgo del que resuelve — habría que buscar "
+                f"un futuro más correlacionado o aceptar quedar sin hedge."
+            )
+        else:
+            st.success(
+                f"El riesgo de base (② = ${comp_2:+.2f}) **domina** sobre el efecto "
+                f"de correlación (③ = ${comp_3:+.2f}). El cross-hedging está "
+                f"funcionando razonablemente bien."
+            )
+
+        with st.expander("📖 Ejemplo: aerolínea cubre nafta con crudo WTI"):
+            st.markdown(r"""
+**Situación:**
+- Aerolínea consume **2,000,000 galones de nafta** por mes
+- No hay futuros líquidos de nafta → usa futuros de **crudo WTI**
+- Correlación nafta-crudo: ρ = 0.928
+
+**Datos históricos:**
+- σ_nafta = 0.0263 (vol cambios de precio nafta)
+- σ_crudo = 0.0313 (vol cambios futuro crudo)
+
+**Hedge ratio óptimo:**
+
+$$h^* = \rho \cdot \frac{\sigma_S}{\sigma_F} = 0.928 \cdot \frac{0.0263}{0.0313} = 0.78$$
+
+**Conversión de unidades:**
+- Futuro crudo: 1,000 barriles por contrato
+- 1 barril ≈ 42 galones
+- 2,000,000 galones = 47,619 barriles
+
+**Número de contratos:**
+
+$$N^* = h^* \cdot \frac{Q_A}{Q_F} = 0.78 \cdot \frac{47{,}619}{1{,}000} \approx 37 \text{ contratos}$$
+
+La aerolínea shortea **37 contratos** de crudo WTI para cubrir 2M galones de nafta.
+""")
