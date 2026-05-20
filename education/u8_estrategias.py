@@ -6,6 +6,7 @@ from __future__ import annotations
 import numpy as np
 import streamlit as st
 
+from pricing.black_scholes import bs_price
 from strategies import legs as L
 from strategies.payoff import max_profit_loss, breakeven_points
 from strategies.aggregator import net_greeks
