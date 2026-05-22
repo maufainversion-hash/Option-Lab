@@ -17,6 +17,7 @@ from greeks.analytical import all_greeks
 from strategies import legs as L
 from strategies.payoff import max_profit_loss, breakeven_points
 from education.parity import parity_check, implied_rate_from_parity
+from education import formulario
 from education.bounds import check_bounds
 from ui.charts.payoff_diagram import payoff_chart
 
@@ -28,10 +29,11 @@ def render() -> None:
         'Hull Cap 10 (mercados) y Cap 11 (propiedades, los 6 factores, put-call parity).'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab_f = st.tabs([
         "Conceptos básicos",
         "Los 6 factores",
         "Propiedades y parity",
+        "📐 Fórmulas",
     ])
 
     with tab1:
@@ -452,3 +454,6 @@ Veámoslo gráficamente.
                 "si está muy ITM. La región naranja muestra dónde el put americano vale más "
                 "que el europeo."
             )
+
+    with tab_f:
+        formulario.cap10_11()

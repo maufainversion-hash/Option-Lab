@@ -9,6 +9,7 @@ import streamlit as st
 
 from pricing.black_scholes import bs_price
 from pricing.binomial import crr_price, leisen_reimer_price, binomial_convergence
+from education import formulario
 
 
 def render() -> None:
@@ -18,8 +19,9 @@ def render() -> None:
         'Hull Cap 13 (binomial — el más difícil), 14 (Wiener), 15 (BSM y N(d1)/N(d2)).'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Árbol 1 paso (intuición)", "Árbol n pasos", "GBM y paths (Cap 14)", "N(d1) y N(d2) (Cap 15)"
+    tab1, tab2, tab3, tab4, tab_f = st.tabs([
+        "Árbol 1 paso (intuición)", "Árbol n pasos", "GBM y paths (Cap 14)",
+        "N(d1) y N(d2) (Cap 15)", "📐 Fórmulas"
     ])
 
     with tab1:
@@ -508,3 +510,6 @@ risk-neutral.
             st.plotly_chart(fig, use_container_width=True)
         except ValueError as e:
             st.error(f"Inputs inválidos: {e}")
+
+    with tab_f:
+        formulario.cap13_15()

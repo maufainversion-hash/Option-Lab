@@ -8,6 +8,7 @@ import streamlit as st
 from pricing.swaps import swap_value_via_bonds, swap_par_rate
 from pricing.currency_swaps import value_currency_swap_bonds, value_currency_swap_forwards
 from ui.styling import output_card
+from education import formulario
 
 
 def render() -> None:
@@ -17,10 +18,11 @@ def render() -> None:
         'Hull Cap 7. Plain vanilla IR swap, valuación via bonds, par swap rate.'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab_f = st.tabs([
         "Mecánica + cashflows",
         "Valuación (bond approach)",
         "Swaps de Monedas",
+        "📐 Fórmulas",
     ])
 
     with tab1:
@@ -444,3 +446,6 @@ Ahorro: 0.5% vs 7.0% directo ✓
                 "cancela su deuda, pero solo tiene ingresos AUD operativos). En la práctica "
                 "esa exposición la administra el intermediario con otros derivados."
             )
+
+    with tab_f:
+        formulario.cap7()

@@ -11,6 +11,7 @@ from strategies import legs as L
 from strategies.payoff import max_profit_loss, breakeven_points
 from strategies.aggregator import net_greeks
 from ui.charts.payoff_diagram import payoff_chart
+from education import formulario
 
 
 # ============================================================
@@ -367,3 +368,6 @@ def render() -> None:
                 f'{ctx["riesgo"]}</div></div>',
                 unsafe_allow_html=True,
             )
+
+    st.markdown("---")
+    formulario.cap12()

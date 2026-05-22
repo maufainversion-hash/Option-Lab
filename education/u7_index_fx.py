@@ -10,6 +10,7 @@ from pricing.exotic_pricing import (
 )
 from pricing.black_scholes import bs_price
 from ui.styling import output_card, info_box, hull_check
+from education import formulario
 
 
 def render() -> None:
@@ -19,8 +20,9 @@ def render() -> None:
         'Hull Cap 17 (índices + FX, Garman-Kohlhagen) y Cap 18 (futures options, Black\'s model).'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Index options", "Currency options (G-K)", "Futures options (Black)", "Range forward"
+    tab1, tab2, tab3, tab4, tab_f = st.tabs([
+        "Index options", "Currency options (G-K)", "Futures options (Black)",
+        "Range forward", "📐 Fórmulas"
     ])
 
     # ============================================================
@@ -278,3 +280,6 @@ def render() -> None:
             st.plotly_chart(fig, use_container_width=True)
         except ValueError as e:
             st.error(str(e))
+
+    with tab_f:
+        formulario.cap17_18()

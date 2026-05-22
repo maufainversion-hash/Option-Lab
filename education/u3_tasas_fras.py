@@ -11,6 +11,7 @@ from pricing.interest_rates import (
     fra_value, macaulay_duration, modified_duration,
 )
 from ui.styling import output_card, info_box, hull_check
+from education import formulario
 
 
 def render() -> None:
@@ -20,7 +21,9 @@ def render() -> None:
         'Hull Cap 4. Compounding, forward rates, <b>FRAs (foco)</b>, duration.'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Compounding", "Forward rates", "FRAs", "Duration"])
+    tab1, tab2, tab3, tab4, tab_f = st.tabs([
+        "Compounding", "Forward rates", "FRAs", "Duration", "📐 Fórmulas"
+    ])
 
     with tab1:
         st.markdown(r"""
@@ -358,3 +361,6 @@ en valor presente.
                           xaxis_title="Δy (%)", yaxis_title="ΔB/B (%)",
                           margin=dict(l=10, r=10, t=40, b=10))
         st.plotly_chart(fig, use_container_width=True)
+
+    with tab_f:
+        formulario.cap4()

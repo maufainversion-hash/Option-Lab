@@ -12,6 +12,7 @@ from pricing.ir_futures import (
     eurodollar_convexity_adjustment, duration_based_hedge_contracts,
 )
 from ui.styling import output_card, info_box, hull_check
+from education import formulario
 
 
 def render() -> None:
@@ -21,8 +22,9 @@ def render() -> None:
         'Day count conventions · Treasury bond futures · Eurodollar futures · Duration hedging.'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Day count", "Treasury futures (CTD)", "Eurodollar + convexity", "Duration hedge"
+    tab1, tab2, tab3, tab4, tab_f = st.tabs([
+        "Day count", "Treasury futures (CTD)", "Eurodollar + convexity",
+        "Duration hedge", "📐 Fórmulas"
     ])
 
     with tab1:
@@ -199,3 +201,6 @@ def render() -> None:
         st.caption("**Hull says:** la duration hedge solo neutraliza el riesgo de un shift "
                    "paralelo. Si la curva cambia de pendiente (steepening / flattening), te queda "
                    "exposición residual. Por eso bancos usan key-rate duration o full revaluation.")
+
+    with tab_f:
+        formulario.cap6()

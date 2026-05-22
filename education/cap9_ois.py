@@ -14,6 +14,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from ui.styling import output_card, info_box, hull_check
+from education import formulario
 
 
 def render() -> None:
@@ -23,10 +24,11 @@ def render() -> None:
         'Por qué OIS para descontar, LIBOR-OIS spread, multi-curve framework.'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab_f = st.tabs([
         "Por qué OIS para descontar",
         "LIBOR-OIS spread",
-        "Multi-curve framework"
+        "Multi-curve framework",
+        "📐 Fórmulas",
     ])
 
     # ============================================================
@@ -233,3 +235,6 @@ forecast por benchmark** (3M LIBOR, 6M LIBOR, etc.).
                  "LIBOR-OIS spread. En portfolios de billones de notional como los de un "
                  "dealer mayor, descontar con la curva equivocada se traduce en P&L "
                  "incorrecto del orden de cientos de millones.", kind="hull")
+
+    with tab_f:
+        formulario.cap9()

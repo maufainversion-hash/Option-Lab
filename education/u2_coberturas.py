@@ -7,6 +7,7 @@ import streamlit as st
 import pandas as pd
 
 from pricing.forwards import minimum_variance_hedge_ratio, equity_portfolio_hedge_contracts
+from education import formulario
 
 
 def render() -> None:
@@ -16,11 +17,12 @@ def render() -> None:
         'Hull Cap 3. Hedge ratio óptimo, basis risk, cobertura de equity portfolios via beta.'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab_f = st.tabs([
         "Hedge ratio óptimo",
         "Basis risk",
         "Hedge de equity portfolio",
         "Cross Hedging Descompuesto",
+        "📐 Fórmulas",
     ])
 
     with tab1:
@@ -274,3 +276,6 @@ $$N^* = h^* \cdot \frac{Q_A}{Q_F} = 0.78 \cdot \frac{47{,}619}{1{,}000} \approx 
 
 La aerolínea shortea **37 contratos** de crudo WTI para cubrir 2M galones de nafta.
 """)
+
+    with tab_f:
+        formulario.cap3()

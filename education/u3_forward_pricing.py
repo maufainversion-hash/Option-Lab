@@ -10,6 +10,7 @@ import streamlit as st
 
 from pricing.forwards import forward_price, cost_of_carry
 from pricing.forward_valuation import value_forward_position
+from education import formulario
 
 
 def render() -> None:
@@ -19,13 +20,14 @@ def render() -> None:
         'Hull Cap 5 y 6. Cost of carry, dividends, storage, contango/backwardation.'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab_f = st.tabs([
         "Pricing genérico",
         "Contango vs Backwardation",
         "Convenience yield",
         "Valor de la Posición",
         "C&C vs RC&C (timeline)",
         "Forward FX (escenarios)",
+        "📐 Fórmulas",
     ])
 
     with tab1:
@@ -455,3 +457,6 @@ hacia 0.8100 a 1 año.
             f"Si el AUD se aprecia más allá de {fwd_fx:.4f}, hubieras estado mejor "
             f"sin hedge — pero ese es el precio de la **certeza**."
         )
+
+    with tab_f:
+        formulario.cap5()

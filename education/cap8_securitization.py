@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from ui.styling import output_card, info_box
+from education import formulario
 
 
 def _waterfall_losses(
@@ -46,8 +47,8 @@ def render() -> None:
         'ABS, MBS, CDOs, tranching, waterfall y la crisis 2008.'
         '</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs([
-        "Mecánica de ABS/MBS", "Waterfall calculator", "Crisis 2008"
+    tab1, tab2, tab3, tab_f = st.tabs([
+        "Mecánica de ABS/MBS", "Waterfall calculator", "Crisis 2008", "📐 Fórmulas"
     ])
 
     with tab1:
@@ -262,3 +263,6 @@ the bottom**.
                  "la cola es muy delgada — pool losses &gt; 15% son casi imposibles. "
                  "Con <b>ρ=0.6</b> (lo que pasó en realidad) la cola se engorda y losses "
                  "del 30-50% son escenarios plausibles.", kind="hull")
+
+    with tab_f:
+        formulario.cap8()

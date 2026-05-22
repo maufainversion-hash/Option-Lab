@@ -5,6 +5,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from education import formulario
+
 
 def render() -> None:
     st.markdown(
@@ -13,12 +15,13 @@ def render() -> None:
         'Hull Cap 1 y 2 · UADE IFD I. Mecánica del contrato, mark-to-market, margins.'
         '</div>', unsafe_allow_html=True)
 
-    tab0, tab1, tab2, tab3, tab4 = st.tabs([
+    tab0, tab1, tab2, tab3, tab4, tab_f = st.tabs([
         "Qué son y para qué sirven",
         "Forward vs Futuro",
         "Mark-to-Market",
         "Convergencia spot-futuro",
         "Especulación y Apalancamiento",
+        "📐 Fórmulas",
     ])
 
     with tab0:
@@ -479,3 +482,6 @@ margen (típicamente 5-15% del notional), el denominador es chico y el ROI explo
 recibís margin calls. Sin reservas para reponer, el broker te liquida y perdés todo
 el margen depositado.
 """)
+
+    with tab_f:
+        formulario.cap1_2()

@@ -11,6 +11,7 @@ from pricing.black_scholes import bs_price, bs_price_both
 from pricing.binomial import binomial_convergence
 from greeks.analytical import all_greeks
 from ui.charts.greeks_visualizer import greek_vs_spot, greek_surface, all_greeks_panel
+from education import formulario
 
 
 def render() -> None:
@@ -121,3 +122,6 @@ def render() -> None:
         hovermode="x unified",
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+    formulario.cap19()
