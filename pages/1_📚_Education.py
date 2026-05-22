@@ -17,7 +17,7 @@ if str(ROOT) not in sys.path:
 from education import (
     u1_futuros, u2_coberturas, u3_tasas_fras, u3_forward_pricing, u3_ir_futures,
     u4_swaps, u5_opciones_intro, u6_binomial, u7_index_fx, u8_estrategias,
-    greeks_lab, cap8_securitization, cap9_ois,
+    greeks_lab, cap8_securitization, cap9_ois, formulario,
 )
 from ui.styling import inject_premium_css
 from ui.components.header_strip import render_header_strip
@@ -52,6 +52,9 @@ SECTIONS: dict[str, dict[str, callable]] = {
     "📙 Suplementos Hull (Cap 8-9)": {
         "Cap 8 · Securitization y crisis 2008": cap8_securitization.render,
         "Cap 9 · OIS y colateral": cap9_ois.render,
+    },
+    "📐 Formulario (machete completo)": {
+        "Todas las fórmulas del curso": formulario.render,
     },
 }
 
